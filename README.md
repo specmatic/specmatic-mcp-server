@@ -4,10 +4,19 @@ A Model Context Protocol (MCP) server that wraps Specmatic's contract testing ca
 
 ## Overview
 
-This MCP server provides a `run_contract_test` tool that:
+This MCP server provides two tools:
+
+### `run_contract_test`
 - Accepts OpenAPI specification files (YAML or JSON)
 - Takes an API base URL to test against
-- Runs Specmatic contract tests using Java JAR
+- Runs standard Specmatic contract tests using Java JAR
+- Returns formatted test results with pass/fail status
+
+### `run_resiliency_test`
+- Accepts OpenAPI specification files (YAML or JSON)
+- Takes an API base URL to test against
+- Runs Specmatic resiliency tests with boundary condition testing
+- Enables `SPECMATIC_GENERATIVE_TESTS` to test contract-invalid requests
 - Returns formatted test results with pass/fail status
 
 ## Features
@@ -41,12 +50,12 @@ You can easily add this MCP server to Claude Code using the `claude mcp add` com
 
 ### For localhost APIs (Host Network Mode):
 ```bash
-claude mcp add docker run --rm -i --network=host specmatic-mcp-server
+claude mcp add docker run --rm -i --network=host specmatic-mcp
 ```
 
 ### For remote APIs (Standard Mode):
 ```bash
-claude mcp add docker run --rm -i specmatic-mcp-server
+claude mcp add docker run --rm -i specmatic-mcp
 ```
 
 After running either command, the MCP server will be automatically configured in your Claude Code settings.
@@ -79,7 +88,7 @@ Add this configuration to your Claude Code MCP settings:
         "--rm",
         "-i",
         "--network=host",
-        "specmatic-mcp-server"
+        "specmatic-mcp"
       ],
       "env": {}
     }
@@ -107,7 +116,7 @@ npm run docker:run
         "run",
         "--rm",
         "-i",
-        "specmatic-mcp-server"
+        "specmatic-mcp"
       ],
       "env": {}
     }
@@ -122,7 +131,11 @@ npm run docker:run
 npm start
 ```
 
-## Tool: run_contract_test
+## Tools
+
+### Tool: run_contract_test
+
+Runs standard Specmatic contract tests to validate API implementations against OpenAPI specifications.
 
 **Parameters:**
 - `openApiSpec` (string, required): The OpenAPI specification content in YAML or JSON format
@@ -135,6 +148,23 @@ Formatted test results including:
 - Test summary with counts
 - Individual test details
 - Full Specmatic output
+- Any error messages
+
+### Tool: run_resiliency_test
+
+Runs Specmatic resiliency tests with boundary condition testing to validate how APIs handle contract-invalid requests.
+
+**Parameters:**
+- `openApiSpec` (string, required): The OpenAPI specification content in YAML or JSON format
+- `apiBaseUrl` (string, required): The base URL of the API to test against
+- `specFormat` (string, optional): Format of the spec ("yaml" or "json", defaults to "yaml")
+
+**Returns:**
+Formatted test results including:
+- Overall pass/fail status
+- Test summary with counts
+- Individual test details
+- Full Specmatic output with boundary condition test results
 - Any error messages
 
 **Example Usage in Claude Code:**

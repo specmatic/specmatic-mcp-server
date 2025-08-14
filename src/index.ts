@@ -387,24 +387,44 @@ class SpecmaticMCPServer {
       output += `- Passed: ${result.summary.passed}\n`;
       output += `- Failed: ${result.summary.failed}\n\n`;
 
-      if (result.summary.testDetails.length > 0) {
-        output += "## Test Details\n";
-        for (const test of result.summary.testDetails) {
-          const status = test.status === "PASSED" ? "✅" : "❌";
-          output += `${status} ${test.scenario}\n`;
+      // Only show failed tests to reduce output size
+      const failedTests = result.summary.testDetails.filter(test => test.status === "FAILED");
+      
+      if (failedTests.length > 0) {
+        output += "## ❌ Failed Tests\n";
+        output += "*Note: Only showing failed tests for brevity. Passed tests are included in the summary above.*\n\n";
+        
+        for (const test of failedTests) {
+          output += `❌ ${test.scenario}\n`;
           if (test.message) {
             output += `   ${test.message}\n`;
           }
         }
         output += "\n";
+      } else if (result.summary.totalTests > 0) {
+        output += "## ✅ All Tests Passed\n";
+        output += "No failed tests to display. All tests passed successfully.\n\n";
       }
     }
 
+    // For large outputs (especially resiliency tests), only include errors and truncate output
     if (result.output) {
-      output += "## Full Output\n";
-      output += "```\n";
-      output += result.output;
-      output += "\n```\n\n";
+      const outputLength = result.output.length;
+      const MAX_OUTPUT_LENGTH = 2000; // Limit to roughly 500 tokens
+      
+      if (outputLength > MAX_OUTPUT_LENGTH) {
+        output += "## Output Summary (Truncated)\n";
+        output += "*Note: Output truncated to show most relevant information. Full logs available in container.*\n\n";
+        output += "```\n";
+        output += result.output.substring(0, MAX_OUTPUT_LENGTH);
+        output += `\n... [Truncated ${outputLength - MAX_OUTPUT_LENGTH} characters]\n`;
+        output += "```\n\n";
+      } else {
+        output += "## Full Output\n";
+        output += "```\n";
+        output += result.output;
+        output += "\n```\n\n";
+      }
     }
 
     if (result.errors) {
