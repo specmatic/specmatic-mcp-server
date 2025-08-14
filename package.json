@@ -1,0 +1,31 @@
+{
+  "name": "specmatic-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server wrapper for Specmatic contract testing",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "specmatic-mcp-server": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "start": "node build/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "mcp",
+    "specmatic",
+    "contract-testing",
+    "openapi"
+  ],
+  "author": "",
+  "license": "MIT"
+}

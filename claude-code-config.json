@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "specmatic": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "specmatic-mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}
