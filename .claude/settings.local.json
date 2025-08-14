@@ -5,7 +5,8 @@
       "Bash(node:*)",
       "Bash(docker run:*)",
       "Bash(rm:*)",
-      "Bash(docker rm:*)"
+      "Bash(docker rm:*)",
+      "WebFetch(domain:docs.specmatic.io)"
     ],
     "deny": [],
     "ask": []

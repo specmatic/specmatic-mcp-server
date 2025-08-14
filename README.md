@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server that wraps Specmatic's contract testing ca
 
 ## Overview
 
-This MCP server provides two tools:
+This MCP server provides three tools:
 
 ### `run_contract_test`
 - Accepts OpenAPI specification files (YAML or JSON)
@@ -19,9 +19,17 @@ This MCP server provides two tools:
 - Enables `SPECMATIC_GENERATIVE_TESTS` to test contract-invalid requests
 - Returns formatted test results with pass/fail status
 
+### `start_mock_server`
+- Accepts OpenAPI specification files (YAML or JSON)
+- Starts a Specmatic mock server for frontend development
+- Returns a running server URL that generates responses based on the contract
+- Enables UI development without backend dependencies
+
 ## Features
 
 - **OpenAPI Contract Testing**: Validate API implementations against OpenAPI specs
+- **Resiliency Testing**: Test boundary conditions and error handling with generative tests
+- **Mock Server**: Start intelligent mock servers from OpenAPI specs for frontend development
 - **JAR Integration**: Uses the Specmatic JAR file directly with Java
 - **Structured Results**: Returns detailed test results in a readable format
 - **MCP Compatible**: Works with any MCP-compatible AI coding assistant
@@ -58,7 +66,12 @@ claude mcp add docker run --rm -i --network=host specmatic-mcp
 claude mcp add docker run --rm -i specmatic-mcp
 ```
 
-After running either command, the MCP server will be automatically configured in your Claude Code settings.
+### For Mock Server Usage (Port Mapping Required):
+```bash
+claude mcp add docker run --rm -i -p 9000-9010:9000-9010 specmatic-mcp
+```
+
+After running any of these commands, the MCP server will be automatically configured in your Claude Code settings.
 
 ## Manual Setup
 
@@ -124,6 +137,36 @@ npm run docker:run
 }
 ```
 
+### Mock Server Mode (For Frontend Development)
+
+For starting mock servers that need to be accessible from your host machine:
+
+```bash
+# Run with port mapping for mock servers (ports 9000-9010)
+docker run --rm -i -p 9000-9010:9000-9010 specmatic-mcp
+```
+
+#### With Claude Code (Mock Server Mode)
+
+```json
+{
+  "mcpServers": {
+    "specmatic": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-p",
+        "9000-9010:9000-9010",
+        "specmatic-mcp"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
 ### Direct Usage (Without Docker)
 
 ```bash
@@ -167,17 +210,41 @@ Formatted test results including:
 - Full Specmatic output with boundary condition test results
 - Any error messages
 
+### Tool: start_mock_server
+
+Starts a Specmatic mock server from OpenAPI specification for frontend development and UI testing.
+
+**Parameters:**
+- `openApiSpec` (string, required): The OpenAPI specification content in YAML or JSON format
+- `port` (number, optional): Port number for the mock server (default: 9000)
+- `specFormat` (string, optional): Format of the spec ("yaml" or "json", defaults to "yaml")
+
+**Returns:**
+Mock server information including:
+- Server URL for making requests
+- Port number
+- Process ID
+- Status and success indicators
+- Usage instructions
+- Any error messages
+
 **Example Usage in Claude Code:**
 
-For localhost APIs (using host network mode):
+For contract testing:
 ```
 Please test my API implementation at http://localhost:8080 against this OpenAPI spec:
 [paste your OpenAPI spec here]
 ```
 
-For remote APIs (using standard mode):
+For starting a mock server:
 ```
-Please test my API implementation at https://api.example.com against this OpenAPI spec:
+Please start a mock server on port 9001 using this OpenAPI spec for my frontend development:
+[paste your OpenAPI spec here]
+```
+
+For resiliency testing:
+```
+Please run resiliency tests against my API at https://api.example.com using this OpenAPI spec:
 [paste your OpenAPI spec here]
 ```
 

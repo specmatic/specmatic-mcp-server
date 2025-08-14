@@ -38,8 +38,24 @@ const RunContractTestInputSchema = z.object({
   specFormat: z.enum(["yaml", "json"]).optional().default("yaml").describe("Format of the OpenAPI spec"),
 });
 
+const StartMockServerInputSchema = z.object({
+  openApiSpec: z.string().describe("The OpenAPI specification content (YAML or JSON)"),
+  port: z.number().optional().default(9000).describe("Port number for the mock server"),
+  specFormat: z.enum(["yaml", "json"]).optional().default("yaml").describe("Format of the OpenAPI spec"),
+});
+
+interface MockServerResult {
+  success: boolean;
+  url?: string;
+  port: number;
+  pid?: number;
+  message: string;
+  errors?: string;
+}
+
 class SpecmaticMCPServer {
   private server: Server;
+  private runningMockServers: Map<number, { process: any; specFile: string; url: string }> = new Map();
 
   constructor() {
     this.server = new Server(
@@ -134,6 +150,31 @@ class SpecmaticMCPServer {
               required: ["openApiSpec", "apiBaseUrl"]
             },
           },
+          {
+            name: "start_mock_server",
+            description: "Start a Specmatic mock server from OpenAPI specification for frontend development. Returns a running mock server URL that can be used to develop UIs against the contract.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                openApiSpec: {
+                  type: "string",
+                  description: "The OpenAPI specification content (YAML or JSON)"
+                },
+                port: {
+                  type: "number",
+                  default: 9000,
+                  description: "Port number for the mock server (default: 9000)"
+                },
+                specFormat: {
+                  type: "string",
+                  enum: ["yaml", "json"],
+                  default: "yaml",
+                  description: "Format of the OpenAPI spec"
+                }
+              },
+              required: ["openApiSpec"]
+            },
+          },
         ],
       };
     });
@@ -164,6 +205,20 @@ class SpecmaticMCPServer {
             {
               type: "text",
               text: this.formatTestResults(result, "resiliency"),
+            },
+          ],
+        };
+      }
+
+      if (name === "start_mock_server") {
+        const input = StartMockServerInputSchema.parse(args);
+        const result = await this.startMockServer(input);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: this.formatMockServerResult(result),
             },
           ],
         };
@@ -432,6 +487,167 @@ class SpecmaticMCPServer {
       output += "```\n";
       output += result.errors;
       output += "\n```\n";
+    }
+
+    return output;
+  }
+
+  private async startMockServer(input: {
+    openApiSpec: string;
+    port: number;
+    specFormat: "yaml" | "json";
+  }): Promise<MockServerResult> {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "specmatic-mock-"));
+    const specFile = path.join(tempDir, `spec.${input.specFormat}`);
+
+    try {
+      // Check if port is already in use
+      if (this.runningMockServers.has(input.port)) {
+        return {
+          success: false,
+          port: input.port,
+          message: `Port ${input.port} is already in use by another mock server`,
+        };
+      }
+
+      // Write the OpenAPI spec to a temporary file
+      await fs.writeFile(specFile, input.openApiSpec, "utf8");
+
+      // Start the mock server
+      const result = await this.executeMockServer(specFile, input.port);
+      
+      if (result.success) {
+        // Store the running server info
+        this.runningMockServers.set(input.port, {
+          process: result.process,
+          specFile,
+          url: `http://localhost:${input.port}`,
+        });
+
+        return {
+          success: true,
+          url: `http://localhost:${input.port}`,
+          port: input.port,
+          pid: result.process.pid,
+          message: `Mock server started successfully on port ${input.port}`,
+        };
+      } else {
+        return {
+          success: false,
+          port: input.port,
+          message: "Failed to start mock server",
+          errors: result.error,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        port: input.port,
+        message: "Failed to start mock server",
+        errors: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeMockServer(
+    specFile: string, 
+    port: number
+  ): Promise<{
+    success: boolean;
+    process?: any;
+    error?: string;
+  }> {
+    return new Promise((resolve) => {
+      const javaArgs = [
+        "-jar",
+        "/app/specmatic.jar",
+        "stub",
+        specFile,
+        `--port=${port}`
+      ];
+
+      const javaProcess = spawn("java", javaArgs, {
+        stdio: ["pipe", "pipe", "pipe"],
+        detached: false,
+      });
+
+      let hasResolved = false;
+      let stderr = "";
+
+      // Give the server a moment to start up
+      setTimeout(() => {
+        if (!hasResolved) {
+          hasResolved = true;
+          if (javaProcess.killed) {
+            resolve({
+              success: false,
+              error: stderr || "Process was killed during startup",
+            });
+          } else {
+            resolve({
+              success: true,
+              process: javaProcess,
+            });
+          }
+        }
+      }, 2000);
+
+      javaProcess.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      javaProcess.on("error", (error) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          resolve({
+            success: false,
+            error: error.message,
+          });
+        }
+      });
+
+      javaProcess.on("exit", (code) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          resolve({
+            success: false,
+            error: `Process exited with code ${code}: ${stderr}`,
+          });
+        }
+      });
+    });
+  }
+
+  private formatMockServerResult(result: MockServerResult): string {
+    let output = `# Specmatic Mock Server\n\n`;
+
+    if (result.success) {
+      output += "## ✅ Mock Server Started Successfully\n\n";
+      output += `**Server URL:** ${result.url}\n`;
+      output += `**Port:** ${result.port}\n`;
+      if (result.pid) {
+        output += `**Process ID:** ${result.pid}\n`;
+      }
+      output += "\n";
+      output += "## Usage\n";
+      output += `Your mock server is now running and ready to receive requests. You can:\n\n`;
+      output += `- Make API calls to: \`${result.url}\`\n`;
+      output += `- Use this URL in your frontend application configuration\n`;
+      output += `- Test your UI against the mocked backend\n\n`;
+      output += "The mock server will generate responses based on your OpenAPI specification, including:\n";
+      output += "- Example responses if defined in the spec\n";
+      output += "- Generated data matching the schema\n";
+      output += "- Proper HTTP status codes as defined in the contract\n\n";
+      output += "**Note:** The mock server will continue running until the MCP server is stopped or the container is terminated.\n";
+    } else {
+      output += "## ❌ Failed to Start Mock Server\n\n";
+      output += `**Error:** ${result.message}\n`;
+      if (result.errors) {
+        output += "\n## Error Details\n";
+        output += "```\n";
+        output += result.errors;
+        output += "\n```\n";
+      }
     }
 
     return output;

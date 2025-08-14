@@ -57,6 +57,9 @@ ENV NODE_ENV=production
 # Expose port (if needed for HTTP transport in future)
 EXPOSE 3000
 
+# Expose port range for mock servers (9000-9010)
+EXPOSE 9000-9010
+
 # Make the script executable
 RUN chmod +x build/index.js
 
