@@ -110,6 +110,30 @@ class SpecmaticMCPServer {
               required: ["openApiSpec", "apiBaseUrl"]
             },
           },
+          {
+            name: "run_resiliency_test",
+            description: "Run Specmatic resiliency tests with boundary condition testing against an API using OpenAPI specification. This enables SPECMATIC_GENERATIVE_TESTS to test how the API handles contract-invalid requests",
+            inputSchema: {
+              type: "object",
+              properties: {
+                openApiSpec: {
+                  type: "string",
+                  description: "The OpenAPI specification content (YAML or JSON)"
+                },
+                apiBaseUrl: {
+                  type: "string",
+                  description: "The base URL of the API to test against"
+                },
+                specFormat: {
+                  type: "string",
+                  enum: ["yaml", "json"],
+                  default: "yaml",
+                  description: "Format of the OpenAPI spec"
+                }
+              },
+              required: ["openApiSpec", "apiBaseUrl"]
+            },
+          },
         ],
       };
     });
@@ -125,7 +149,21 @@ class SpecmaticMCPServer {
           content: [
             {
               type: "text",
-              text: this.formatTestResults(result),
+              text: this.formatTestResults(result, "contract"),
+            },
+          ],
+        };
+      }
+
+      if (name === "run_resiliency_test") {
+        const input = RunContractTestInputSchema.parse(args);
+        const result = await this.runResiliencyTest(input);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: this.formatTestResults(result, "resiliency"),
             },
           ],
         };
@@ -174,7 +212,49 @@ class SpecmaticMCPServer {
     }
   }
 
-  private async executeSpecmaticTest(specFile: string, apiBaseUrl: string): Promise<{
+  private async runResiliencyTest(input: {
+    openApiSpec: string;
+    apiBaseUrl: string;
+    specFormat: "yaml" | "json";
+  }): Promise<SpecmaticTestResult> {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "specmatic-resiliency-test-"));
+    const specFile = path.join(tempDir, `spec.${input.specFormat}`);
+
+    try {
+      // Write the OpenAPI spec to a temporary file
+      await fs.writeFile(specFile, input.openApiSpec, "utf8");
+
+      // Run Specmatic resiliency test with SPECMATIC_GENERATIVE_TESTS=true
+      const result = await this.executeSpecmaticTest(specFile, input.apiBaseUrl, {
+        SPECMATIC_GENERATIVE_TESTS: "true"
+      });
+      
+      // Parse the output to extract test results
+      const parsedResult = this.parseSpecmaticOutput(result);
+      
+      return parsedResult;
+    } catch (error) {
+      return {
+        success: false,
+        output: "",
+        errors: error instanceof Error ? error.message : String(error),
+        exitCode: 1,
+      };
+    } finally {
+      // Cleanup temporary files
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        console.error("Failed to cleanup temp directory:", cleanupError);
+      }
+    }
+  }
+
+  private async executeSpecmaticTest(
+    specFile: string, 
+    apiBaseUrl: string, 
+    env: Record<string, string> = {}
+  ): Promise<{
     stdout: string;
     stderr: string;
     exitCode: number;
@@ -190,6 +270,7 @@ class SpecmaticMCPServer {
 
       const javaProcess = spawn("java", javaArgs, {
         stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, ...env },
       });
 
       let stdout = "";
@@ -286,8 +367,13 @@ class SpecmaticMCPServer {
     return testResults;
   }
 
-  private formatTestResults(result: SpecmaticTestResult): string {
-    let output = "# Specmatic Contract Test Results\n\n";
+  private formatTestResults(result: SpecmaticTestResult, testType: "contract" | "resiliency" = "contract"): string {
+    const testTypeTitle = testType === "resiliency" ? "Resiliency" : "Contract";
+    let output = `# Specmatic ${testTypeTitle} Test Results\n\n`;
+
+    if (testType === "resiliency") {
+      output += "**Boundary Condition Testing Enabled** - Tests include contract-invalid requests to verify error handling\n\n";
+    }
 
     if (result.success) {
       output += "## ✅ Test Status: PASSED\n\n";
