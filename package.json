@@ -10,7 +10,11 @@
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
     "start": "node build/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "docker:build": "docker build -t specmatic-mcp-server .",
+    "docker:run": "docker run --rm -i specmatic-mcp-server",
+    "start:host-network": "docker run --rm -i --network=host specmatic-mcp-server",
+    "setup": "./setup-host.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2",

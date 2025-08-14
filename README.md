@@ -19,24 +19,84 @@ This MCP server provides a `run_contract_test` tool that:
 
 ## Prerequisites
 
-- Java Runtime Environment (JRE) 17 or higher
+- Docker (for container-based usage)
+- Java Runtime Environment (JRE) 17 or higher (for direct usage)
 - The Specmatic JAR file is included in the Docker image
 
 ## Building
+
+First, make sure you have the Docker image built:
 
 ```bash
 # Build the TypeScript code
 npm run build
 
 # Build the Docker image
-docker build -t specmatic-mcp-server .
+npm run docker:build
 ```
 
-## Usage
+## Quick Setup with Claude Code
 
-### With Claude Code
+You can easily add this MCP server to Claude Code using the `claude mcp add` command:
+
+### For localhost APIs (Host Network Mode):
+```bash
+claude mcp add docker run --rm -i --network=host specmatic-mcp-server
+```
+
+### For remote APIs (Standard Mode):
+```bash
+claude mcp add docker run --rm -i specmatic-mcp-server
+```
+
+After running either command, the MCP server will be automatically configured in your Claude Code settings.
+
+## Manual Setup
+
+### Host Network Mode (Recommended for localhost APIs)
+
+When you need to test APIs running on `localhost`, use host network mode:
+
+```bash
+# Setup and build
+npm run setup
+
+# Run with host network access
+npm run start:host-network
+```
+
+#### With Claude Code (Host Network Mode)
 
 Add this configuration to your Claude Code MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "specmatic": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--network=host",
+        "specmatic-mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+### Standard Docker Mode (For remote APIs)
+
+For testing remote APIs or when using `host.docker.internal`:
+
+```bash
+# Run standard Docker mode
+npm run docker:run
+```
+
+#### With Claude Code (Standard Mode)
 
 ```json
 {
@@ -55,14 +115,11 @@ Add this configuration to your Claude Code MCP settings:
 }
 ```
 
-### Direct Usage
+### Direct Usage (Without Docker)
 
 ```bash
-# Run the MCP server locally
+# Run the MCP server locally (requires Java 17+ installed)
 npm start
-
-# Or run via Docker
-docker run --rm -i specmatic-mcp-server
 ```
 
 ## Tool: run_contract_test
@@ -81,6 +138,14 @@ Formatted test results including:
 - Any error messages
 
 **Example Usage in Claude Code:**
+
+For localhost APIs (using host network mode):
+```
+Please test my API implementation at http://localhost:8080 against this OpenAPI spec:
+[paste your OpenAPI spec here]
+```
+
+For remote APIs (using standard mode):
 ```
 Please test my API implementation at https://api.example.com against this OpenAPI spec:
 [paste your OpenAPI spec here]
