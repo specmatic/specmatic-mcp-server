@@ -6,7 +6,8 @@
       "Bash(docker run:*)",
       "Bash(rm:*)",
       "Bash(docker rm:*)",
-      "WebFetch(domain:docs.specmatic.io)"
+      "WebFetch(domain:docs.specmatic.io)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
