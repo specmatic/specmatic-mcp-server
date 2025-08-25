@@ -38,19 +38,26 @@ const RunContractTestInputSchema = z.object({
   specFormat: z.enum(["yaml", "json"]).optional().default("yaml").describe("Format of the OpenAPI spec"),
 });
 
-const StartMockServerInputSchema = z.object({
-  openApiSpec: z.string().describe("The OpenAPI specification content (YAML or JSON)"),
-  port: z.number().optional().default(9000).describe("Port number for the mock server"),
-  specFormat: z.enum(["yaml", "json"]).optional().default("yaml").describe("Format of the OpenAPI spec"),
+const ManageMockServerInputSchema = z.object({
+  command: z.enum(["start", "stop", "list"]).describe("The action to perform on mock servers"),
+  openApiSpec: z.string().optional().describe("The OpenAPI specification content (YAML or JSON) - required for 'start' command"),
+  port: z.number().optional().default(9000).describe("Port number for the mock server - required for 'start' and 'stop' commands"),
+  specFormat: z.enum(["yaml", "json"]).optional().default("yaml").describe("Format of the OpenAPI spec - used with 'start' command"),
 });
 
 interface MockServerResult {
   success: boolean;
+  command: string;
   url?: string;
-  port: number;
+  port?: number;
   pid?: number;
   message: string;
   errors?: string;
+  runningServers?: Array<{
+    port: number;
+    url: string;
+    pid?: number;
+  }>;
 }
 
 class SpecmaticMCPServer {
@@ -151,28 +158,33 @@ class SpecmaticMCPServer {
             },
           },
           {
-            name: "start_mock_server",
-            description: "Start a Specmatic mock server from OpenAPI specification for frontend development. Returns a running mock server URL that can be used to develop UIs against the contract.",
+            name: "manage_mock_server",
+            description: "Manage Specmatic mock servers - start, stop, or list running servers for frontend development. Supports complete mock server lifecycle management.",
             inputSchema: {
               type: "object",
               properties: {
+                command: {
+                  type: "string",
+                  enum: ["start", "stop", "list"],
+                  description: "The action to perform: 'start' creates a new server, 'stop' terminates a server, 'list' shows running servers"
+                },
                 openApiSpec: {
                   type: "string",
-                  description: "The OpenAPI specification content (YAML or JSON)"
+                  description: "The OpenAPI specification content (YAML or JSON) - required for 'start' command"
                 },
                 port: {
                   type: "number",
                   default: 9000,
-                  description: "Port number for the mock server (default: 9000)"
+                  description: "Port number for the mock server - required for 'start' and 'stop' commands"
                 },
                 specFormat: {
                   type: "string",
                   enum: ["yaml", "json"],
                   default: "yaml",
-                  description: "Format of the OpenAPI spec"
+                  description: "Format of the OpenAPI spec - used with 'start' command"
                 }
               },
-              required: ["openApiSpec"]
+              required: ["command"]
             },
           },
         ],
@@ -210,9 +222,18 @@ class SpecmaticMCPServer {
         };
       }
 
-      if (name === "start_mock_server") {
-        const input = StartMockServerInputSchema.parse(args);
-        const result = await this.startMockServer(input);
+      if (name === "manage_mock_server") {
+        const input = ManageMockServerInputSchema.parse(args);
+        
+        // Validate conditional requirements
+        if (input.command === "start" && !input.openApiSpec) {
+          throw new McpError(ErrorCode.InvalidParams, "openApiSpec is required for 'start' command");
+        }
+        if ((input.command === "start" || input.command === "stop") && !input.port) {
+          throw new McpError(ErrorCode.InvalidParams, "port is required for 'start' and 'stop' commands");
+        }
+        
+        const result = await this.manageMockServer(input);
         
         return {
           content: [
@@ -315,15 +336,13 @@ class SpecmaticMCPServer {
     exitCode: number;
   }> {
     return new Promise((resolve, reject) => {
-      const javaArgs = [
-        "-jar",
-        "/app/specmatic.jar",
+      const specmaticArgs = [
         "test",
         specFile,
         `--testBaseURL=${apiBaseUrl}`
       ];
 
-      const javaProcess = spawn("java", javaArgs, {
+      const specmaticProcess = spawn("specmatic", specmaticArgs, {
         stdio: ["pipe", "pipe", "pipe"],
         env: { ...process.env, ...env },
       });
@@ -331,15 +350,15 @@ class SpecmaticMCPServer {
       let stdout = "";
       let stderr = "";
 
-      javaProcess.stdout.on("data", (data) => {
+      specmaticProcess.stdout.on("data", (data) => {
         stdout += data.toString();
       });
 
-      javaProcess.stderr.on("data", (data) => {
+      specmaticProcess.stderr.on("data", (data) => {
         stderr += data.toString();
       });
 
-      javaProcess.on("close", (code) => {
+      specmaticProcess.on("close", (code) => {
         resolve({
           stdout,
           stderr,
@@ -347,13 +366,13 @@ class SpecmaticMCPServer {
         });
       });
 
-      javaProcess.on("error", (error) => {
+      specmaticProcess.on("error", (error) => {
         reject(error);
       });
 
       // Set a timeout for the test execution (5 minutes)
       setTimeout(() => {
-        javaProcess.kill("SIGTERM");
+        specmaticProcess.kill("SIGTERM");
         reject(new Error("Test execution timeout after 5 minutes"));
       }, 5 * 60 * 1000);
     });
@@ -492,6 +511,32 @@ class SpecmaticMCPServer {
     return output;
   }
 
+  private async manageMockServer(input: {
+    command: "start" | "stop" | "list";
+    openApiSpec?: string;
+    port?: number;
+    specFormat?: "yaml" | "json";
+  }): Promise<MockServerResult> {
+    switch (input.command) {
+      case "start":
+        return await this.startMockServer(input as {
+          openApiSpec: string;
+          port: number;
+          specFormat: "yaml" | "json";
+        });
+      case "stop":
+        return await this.stopMockServer(input.port!);
+      case "list":
+        return await this.listMockServers();
+      default:
+        return {
+          success: false,
+          command: input.command,
+          message: `Unknown command: ${input.command}`,
+        };
+    }
+  }
+
   private async startMockServer(input: {
     openApiSpec: string;
     port: number;
@@ -505,6 +550,7 @@ class SpecmaticMCPServer {
       if (this.runningMockServers.has(input.port)) {
         return {
           success: false,
+          command: "start",
           port: input.port,
           message: `Port ${input.port} is already in use by another mock server`,
         };
@@ -526,6 +572,7 @@ class SpecmaticMCPServer {
 
         return {
           success: true,
+          command: "start",
           url: `http://localhost:${input.port}`,
           port: input.port,
           pid: result.process.pid,
@@ -534,6 +581,7 @@ class SpecmaticMCPServer {
       } else {
         return {
           success: false,
+          command: "start",
           port: input.port,
           message: "Failed to start mock server",
           errors: result.error,
@@ -542,6 +590,7 @@ class SpecmaticMCPServer {
     } catch (error) {
       return {
         success: false,
+        command: "start",
         port: input.port,
         message: "Failed to start mock server",
         errors: error instanceof Error ? error.message : String(error),
@@ -558,15 +607,13 @@ class SpecmaticMCPServer {
     error?: string;
   }> {
     return new Promise((resolve) => {
-      const javaArgs = [
-        "-jar",
-        "/app/specmatic.jar",
+      const specmaticArgs = [
         "stub",
         specFile,
         `--port=${port}`
       ];
 
-      const javaProcess = spawn("java", javaArgs, {
+      const specmaticProcess = spawn("specmatic", specmaticArgs, {
         stdio: ["pipe", "pipe", "pipe"],
         detached: false,
       });
@@ -578,7 +625,7 @@ class SpecmaticMCPServer {
       setTimeout(() => {
         if (!hasResolved) {
           hasResolved = true;
-          if (javaProcess.killed) {
+          if (specmaticProcess.killed) {
             resolve({
               success: false,
               error: stderr || "Process was killed during startup",
@@ -586,17 +633,17 @@ class SpecmaticMCPServer {
           } else {
             resolve({
               success: true,
-              process: javaProcess,
+              process: specmaticProcess,
             });
           }
         }
       }, 2000);
 
-      javaProcess.stderr.on("data", (data) => {
+      specmaticProcess.stderr.on("data", (data) => {
         stderr += data.toString();
       });
 
-      javaProcess.on("error", (error) => {
+      specmaticProcess.on("error", (error) => {
         if (!hasResolved) {
           hasResolved = true;
           resolve({
@@ -606,7 +653,7 @@ class SpecmaticMCPServer {
         }
       });
 
-      javaProcess.on("exit", (code) => {
+      specmaticProcess.on("exit", (code) => {
         if (!hasResolved) {
           hasResolved = true;
           resolve({
@@ -618,36 +665,137 @@ class SpecmaticMCPServer {
     });
   }
 
-  private formatMockServerResult(result: MockServerResult): string {
-    let output = `# Specmatic Mock Server\n\n`;
+  private async stopMockServer(port: number): Promise<MockServerResult> {
+    try {
+      const serverInfo = this.runningMockServers.get(port);
+      
+      if (!serverInfo) {
+        return {
+          success: false,
+          command: "stop",
+          port: port,
+          message: `No mock server running on port ${port}`,
+        };
+      }
 
-    if (result.success) {
-      output += "## ✅ Mock Server Started Successfully\n\n";
-      output += `**Server URL:** ${result.url}\n`;
-      output += `**Port:** ${result.port}\n`;
-      if (result.pid) {
-        output += `**Process ID:** ${result.pid}\n`;
-      }
-      output += "\n";
-      output += "## Usage\n";
-      output += `Your mock server is now running and ready to receive requests. You can:\n\n`;
-      output += `- Make API calls to: \`${result.url}\`\n`;
-      output += `- Use this URL in your frontend application configuration\n`;
-      output += `- Test your UI against the mocked backend\n\n`;
-      output += "The mock server will generate responses based on your OpenAPI specification, including:\n";
-      output += "- Example responses if defined in the spec\n";
-      output += "- Generated data matching the schema\n";
-      output += "- Proper HTTP status codes as defined in the contract\n\n";
-      output += "**Note:** The mock server will continue running until the MCP server is stopped or the container is terminated.\n";
-    } else {
-      output += "## ❌ Failed to Start Mock Server\n\n";
-      output += `**Error:** ${result.message}\n`;
-      if (result.errors) {
-        output += "\n## Error Details\n";
-        output += "```\n";
-        output += result.errors;
-        output += "\n```\n";
-      }
+      // Kill the process
+      serverInfo.process.kill("SIGTERM");
+      
+      // Remove from tracking
+      this.runningMockServers.delete(port);
+
+      return {
+        success: true,
+        command: "stop",
+        port: port,
+        message: `Mock server on port ${port} stopped successfully`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        command: "stop",
+        port: port,
+        message: "Failed to stop mock server",
+        errors: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async listMockServers(): Promise<MockServerResult> {
+    const runningServers = Array.from(this.runningMockServers.entries()).map(([port, info]) => ({
+      port: port,
+      url: info.url,
+      pid: info.process.pid,
+    }));
+
+    return {
+      success: true,
+      command: "list",
+      message: `Found ${runningServers.length} running mock server${runningServers.length === 1 ? '' : 's'}`,
+      runningServers,
+    };
+  }
+
+  private formatMockServerResult(result: MockServerResult): string {
+    let output = `# Specmatic Mock Server Management\n\n`;
+
+    switch (result.command) {
+      case "start":
+        if (result.success) {
+          output += "## ✅ Mock Server Started Successfully\n\n";
+          output += `**Server URL:** ${result.url}\n`;
+          output += `**Port:** ${result.port}\n`;
+          if (result.pid) {
+            output += `**Process ID:** ${result.pid}\n`;
+          }
+          output += "\n";
+          output += "## Usage\n";
+          output += `Your mock server is now running and ready to receive requests. You can:\n\n`;
+          output += `- Make API calls to: \`${result.url}\`\n`;
+          output += `- Use this URL in your frontend application configuration\n`;
+          output += `- Test your UI against the mocked backend\n\n`;
+          output += "The mock server will generate responses based on your OpenAPI specification, including:\n";
+          output += "- Example responses if defined in the spec\n";
+          output += "- Generated data matching the schema\n";
+          output += "- Proper HTTP status codes as defined in the contract\n\n";
+          output += "**Note:** Use the 'stop' command to terminate this server when done.\n";
+        } else {
+          output += "## ❌ Failed to Start Mock Server\n\n";
+          output += `**Error:** ${result.message}\n`;
+          if (result.errors) {
+            output += "\n## Error Details\n";
+            output += "```\n";
+            output += result.errors;
+            output += "\n```\n";
+          }
+        }
+        break;
+
+      case "stop":
+        if (result.success) {
+          output += "## ✅ Mock Server Stopped Successfully\n\n";
+          output += `**Port:** ${result.port}\n`;
+          output += `**Status:** ${result.message}\n\n`;
+          output += "The mock server has been terminated and the port is now available for reuse.\n";
+        } else {
+          output += "## ❌ Failed to Stop Mock Server\n\n";
+          output += `**Error:** ${result.message}\n`;
+          if (result.errors) {
+            output += "\n## Error Details\n";
+            output += "```\n";
+            output += result.errors;
+            output += "\n```\n";
+          }
+        }
+        break;
+
+      case "list":
+        if (result.success) {
+          output += `## 📋 Running Mock Servers\n\n`;
+          output += `**Status:** ${result.message}\n\n`;
+          
+          if (result.runningServers && result.runningServers.length > 0) {
+            output += "| Port | URL | Process ID |\n";
+            output += "|------|-----|------------|\n";
+            for (const server of result.runningServers) {
+              output += `| ${server.port} | ${server.url} | ${server.pid || 'N/A'} |\n`;
+            }
+            output += "\n**Usage:**\n";
+            output += "- Use any of the URLs above in your frontend applications\n";
+            output += "- Stop specific servers using the 'stop' command with the port number\n";
+          } else {
+            output += "No mock servers are currently running.\n\n";
+            output += "Use the 'start' command to create a new mock server from an OpenAPI specification.\n";
+          }
+        } else {
+          output += "## ❌ Failed to List Mock Servers\n\n";
+          output += `**Error:** ${result.message}\n`;
+        }
+        break;
+
+      default:
+        output += "## ❌ Unknown Command\n\n";
+        output += `**Error:** ${result.message}\n`;
     }
 
     return output;

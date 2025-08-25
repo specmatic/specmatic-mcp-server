@@ -1,42 +1,20 @@
-# Use Node.js as base image for building our MCP server
-FROM node:20-alpine AS builder
+# Use Specmatic base image with specmatic command readily available
+FROM specmatic/specmatic:latest
 
-# Set working directory
+# Install Node.js and npm
+RUN apk add --no-cache nodejs npm
+
+# Create app directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies
+# Install dependencies and build
 RUN npm ci
-
-# Copy source code
 COPY src/ ./src/
-
-# Build the TypeScript code
 RUN npm run build
-
-# Final stage - use Alpine Linux with Java and Node.js
-FROM alpine:latest
-
-# Install necessary packages
-RUN apk add --no-cache \
-    openjdk17-jre \
-    nodejs \
-    npm \
-    curl \
-    && rm -rf /var/cache/apk/*
-
-# Create app directory
-WORKDIR /app
-
-# Download Specmatic JAR
-RUN curl -L -o specmatic.jar https://github.com/specmatic/specmatic/releases/download/2.18.2/specmatic.jar
-
-# Copy built application from builder stage
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/package*.json ./
 
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force
