@@ -11,17 +11,8 @@ npm run docker:build
 
 **Add to Claude Code using absolute path:**
 ```bash
-# Get your current directory path
-pwd
-
 # Add to Claude Code (replace with your actual path)
-claude mcp add-json specmatic '{"command":"docker","args":["run","--rm","-i","--network=host","-v","/your/absolute/path/reports:/app/reports","specmatic-mcp"],"env":{}}'
-```
-
-**Example:**
-```bash
-# If pwd shows: /Users/JohnDoe/projects/api-project
-claude mcp add-json specmatic '{"command":"docker","args":["run","--rm","-i","--network=host","-v","/Users/JohnDoe/projects/api-project/reports:/app/reports","specmatic-mcp"],"env":{}}'
+claude mcp add-json specmatic '{"command":"docker","args":["run","--rm","-i","--network=host","-v","'$(pwd)':/app/reports","specmatic-mcp"],"env":{}}'
 ```
 
 ## Features
