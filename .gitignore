@@ -73,3 +73,6 @@ temp/
 
 # Test files
 test-results/
+
+# JUnit XML reports (temporary files)
+reports/

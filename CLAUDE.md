@@ -116,6 +116,19 @@ The server implements the Model Context Protocol using `@modelcontextprotocol/sd
 - **Spec Writing**: Supports both YAML and JSON OpenAPI specifications
 - **Cleanup Strategy**: Ensures temp files are removed even on errors
 
+## MCP Configuration for Claude Code
+
+**IMPORTANT:** To enable JUnit XML report generation and analysis, you must configure Claude Code with volume mapping. Update your MCP configuration as follows:
+
+```bash
+claude mcp add-json specmatic '{"command":"docker","args":["run","--rm","-i","--network=host","-v","$(pwd)/reports:/app/reports","specmatic-mcp"],"env":{}}'
+```
+
+This volume mapping allows:
+- JUnit XML reports to be written to `./reports/` on your host system
+- Claude Code to read detailed test reports for analysis
+- Persistent reports that survive container restarts
+
 ## Usage Examples
 
 ### Contract Testing
@@ -130,12 +143,17 @@ The server implements the Model Context Protocol using `@modelcontextprotocol/sd
   }
 }
 
-// Expected Output Format
+// Expected Output Format (with JUnit Report)
 ✅ Test Status: PASSED
 Summary:
 - Total Tests: 5
 - Passed: 5
 - Failed: 0
+
+📄 Detailed JUnit Report: `./reports/TEST-ContractTests-20250825T142301.xml`
+
+For complete failure analysis, use the Read tool to analyze the JUnit XML report above.
+The report contains detailed test results, timing information, and stack traces.
 ```
 
 ### Resiliency Testing
@@ -150,8 +168,19 @@ Summary:
   }
 }
 
-// Output includes boundary condition testing
-**Boundary Condition Testing Enabled** - Tests include contract-invalid requests
+// Expected Output Format (with JUnit Report)
+❌ Test Status: FAILED
+**Boundary Condition Testing Enabled** - Tests include contract-invalid requests to verify error handling
+
+Summary:
+- Total Tests: 25
+- Passed: 18
+- Failed: 7
+
+📄 Detailed JUnit Report: `./reports/TEST-ResiliencyTests-20250825T143405.xml`
+
+For complete failure analysis, use the Read tool to analyze the JUnit XML report above.
+*Console output omitted - detailed results available in JUnit report above.*
 ```
 
 ### Mock Server Management

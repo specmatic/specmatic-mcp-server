@@ -14,12 +14,43 @@ import { spawn } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
+import { XMLParser } from "fast-xml-parser";
+
+interface JunitTestCase {
+  name: string;
+  classname: string;
+  status: "PASSED" | "FAILED" | "SKIPPED";
+  time?: number;
+  failure?: {
+    message: string;
+    type?: string;
+    content?: string;
+  };
+  error?: {
+    message: string;
+    type?: string;
+    content?: string;
+  };
+}
+
+interface JunitTestSuite {
+  name: string;
+  tests: number;
+  failures: number;
+  errors: number;
+  skipped?: number;
+  time?: number;
+  testcases: JunitTestCase[];
+}
 
 interface SpecmaticTestResult {
   success: boolean;
   output: string;
   errors: string;
   exitCode: number;
+  junitReportPath?: string;        // Container path
+  hostJunitReportPath?: string;    // Host path for Claude Code access
+  junitParsedData?: JunitTestSuite; // Parsed structured data
   summary?: {
     totalTests: number;
     passed: number;
@@ -58,6 +89,93 @@ interface MockServerResult {
     url: string;
     pid?: number;
   }>;
+}
+
+// Helper functions for JUnit XML file discovery and parsing
+async function listXmlFiles(directory: string): Promise<string[]> {
+  try {
+    const files = await fs.readdir(directory);
+    return files.filter(file => file.endsWith('.xml'));
+  } catch (error) {
+    return []; // Return empty array if directory doesn't exist or can't be read
+  }
+}
+
+async function findNewJunitFiles(reportsDir: string, filesBefore: string[]): Promise<string[]> {
+  const filesAfter = await listXmlFiles(reportsDir);
+  return filesAfter.filter(file => !filesBefore.includes(file));
+}
+
+async function parseJunitXmlFile(filePath: string): Promise<JunitTestSuite | null> {
+  try {
+    const xmlContent = await fs.readFile(filePath, 'utf8');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_'
+    });
+    
+    const jsonObj = parser.parse(xmlContent);
+    
+    // Handle different JUnit XML structures (testsuite or testsuites)
+    let testSuite = jsonObj.testsuite || jsonObj.testsuites?.testsuite;
+    
+    if (!testSuite) {
+      console.error('No testsuite found in XML file:', filePath);
+      return null;
+    }
+    
+    // Handle case where testsuite is an array (multiple test suites)
+    if (Array.isArray(testSuite)) {
+      testSuite = testSuite[0]; // Take the first one for now
+    }
+    
+    const testcases: JunitTestCase[] = [];
+    const rawTestcases = testSuite.testcase || [];
+    const testcaseArray = Array.isArray(rawTestcases) ? rawTestcases : [rawTestcases];
+    
+    for (const tc of testcaseArray) {
+      const testcase: JunitTestCase = {
+        name: tc['@_name'] || tc.name || 'Unknown Test',
+        classname: tc['@_classname'] || tc.classname || 'Unknown Class',
+        status: 'PASSED',
+        time: tc['@_time'] ? parseFloat(tc['@_time']) : undefined
+      };
+      
+      // Check for failure or error
+      if (tc.failure) {
+        testcase.status = 'FAILED';
+        testcase.failure = {
+          message: tc.failure['@_message'] || tc.failure.message || 'Test failed',
+          type: tc.failure['@_type'] || tc.failure.type,
+          content: typeof tc.failure === 'string' ? tc.failure : tc.failure['#text']
+        };
+      } else if (tc.error) {
+        testcase.status = 'FAILED';
+        testcase.error = {
+          message: tc.error['@_message'] || tc.error.message || 'Test error',
+          type: tc.error['@_type'] || tc.error.type,
+          content: typeof tc.error === 'string' ? tc.error : tc.error['#text']
+        };
+      } else if (tc.skipped) {
+        testcase.status = 'SKIPPED';
+      }
+      
+      testcases.push(testcase);
+    }
+    
+    return {
+      name: testSuite['@_name'] || testSuite.name || 'Test Suite',
+      tests: parseInt(testSuite['@_tests'] || testSuite.tests || '0'),
+      failures: parseInt(testSuite['@_failures'] || testSuite.failures || '0'),
+      errors: parseInt(testSuite['@_errors'] || testSuite.errors || '0'),
+      skipped: parseInt(testSuite['@_skipped'] || testSuite.skipped || '0'),
+      time: testSuite['@_time'] ? parseFloat(testSuite['@_time']) : undefined,
+      testcases
+    };
+  } catch (error) {
+    console.error('Failed to parse JUnit XML file:', filePath, error);
+    return null;
+  }
 }
 
 class SpecmaticMCPServer {
@@ -268,7 +386,7 @@ class SpecmaticMCPServer {
       const result = await this.executeSpecmaticTest(specFile, input.apiBaseUrl);
       
       // Parse the output to extract test results
-      const parsedResult = this.parseSpecmaticOutput(result);
+      const parsedResult = await this.parseSpecmaticOutput(result);
       
       return parsedResult;
     } catch (error) {
@@ -306,7 +424,7 @@ class SpecmaticMCPServer {
       });
       
       // Parse the output to extract test results
-      const parsedResult = this.parseSpecmaticOutput(result);
+      const parsedResult = await this.parseSpecmaticOutput(result);
       
       return parsedResult;
     } catch (error) {
@@ -334,13 +452,23 @@ class SpecmaticMCPServer {
     stdout: string;
     stderr: string;
     exitCode: number;
+    junitFiles?: string[];
+    junitReportPath?: string;
+    hostJunitReportPath?: string;
   }> {
-    return new Promise((resolve, reject) => {
-      const specmaticArgs = [
-        "test",
-        specFile,
-        `--testBaseURL=${apiBaseUrl}`
-      ];
+    const reportsDir = '/app/reports';
+    
+    return new Promise(async (resolve, reject) => {
+      try {
+        // List existing XML files before test execution
+        const filesBefore = await listXmlFiles(reportsDir);
+        
+        const specmaticArgs = [
+          "test",
+          specFile,
+          `--testBaseURL=${apiBaseUrl}`,
+          `--junitReportDir=${reportsDir}`
+        ];
 
       const specmaticProcess = spawn("specmatic", specmaticArgs, {
         stdio: ["pipe", "pipe", "pipe"],
@@ -358,12 +486,37 @@ class SpecmaticMCPServer {
         stderr += data.toString();
       });
 
-      specmaticProcess.on("close", (code) => {
-        resolve({
-          stdout,
-          stderr,
-          exitCode: code || 0,
-        });
+      specmaticProcess.on("close", async (code) => {
+        try {
+          // Discover new XML files after test execution
+          const newFiles = await findNewJunitFiles(reportsDir, filesBefore);
+          
+          let junitReportPath: string | undefined;
+          let hostJunitReportPath: string | undefined;
+          
+          if (newFiles.length > 0) {
+            // Use the first (or most recent) JUnit file found
+            const junitFilename = newFiles[0];
+            junitReportPath = path.join(reportsDir, junitFilename);
+            hostJunitReportPath = `./reports/${junitFilename}`;
+          }
+          
+          resolve({
+            stdout,
+            stderr,
+            exitCode: code || 0,
+            junitFiles: newFiles,
+            junitReportPath,
+            hostJunitReportPath
+          });
+        } catch (error) {
+          // If file discovery fails, still return the basic result
+          resolve({
+            stdout,
+            stderr,
+            exitCode: code || 0,
+          });
+        }
       });
 
       specmaticProcess.on("error", (error) => {
@@ -375,67 +528,101 @@ class SpecmaticMCPServer {
         specmaticProcess.kill("SIGTERM");
         reject(new Error("Test execution timeout after 5 minutes"));
       }, 5 * 60 * 1000);
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
-  private parseSpecmaticOutput(result: {
+  private async parseSpecmaticOutput(result: {
     stdout: string;
     stderr: string;
     exitCode: number;
-  }): SpecmaticTestResult {
-    const { stdout, stderr, exitCode } = result;
+    junitFiles?: string[];
+    junitReportPath?: string;
+    hostJunitReportPath?: string;
+  }): Promise<SpecmaticTestResult> {
+    const { stdout, stderr, exitCode, junitFiles, junitReportPath, hostJunitReportPath } = result;
     const success = exitCode === 0;
 
-    // Basic parsing - this could be enhanced based on actual Specmatic output format
+    // Initialize test results with JUnit paths
     const testResults: SpecmaticTestResult = {
       success,
       output: stdout,
       errors: stderr,
       exitCode,
+      junitReportPath,
+      hostJunitReportPath,
     };
 
-    // Try to parse test summary from output
-    try {
-      const lines = stdout.split("\n");
-      const testDetails: Array<{
-        scenario: string;
-        status: "PASSED" | "FAILED";
-        message?: string;
-      }> = [];
-
-      let totalTests = 0;
-      let passed = 0;
-      let failed = 0;
-
-      for (const line of lines) {
-        // Look for test result patterns in Specmatic output
-        if (line.includes("PASSED") || line.includes("FAILED")) {
-          const status = line.includes("PASSED") ? "PASSED" : "FAILED";
-          const scenario = line.trim();
+    // Try to parse JUnit XML if available
+    if (junitReportPath) {
+      try {
+        const junitData = await parseJunitXmlFile(junitReportPath);
+        if (junitData) {
+          testResults.junitParsedData = junitData;
           
-          testDetails.push({
-            scenario,
-            status,
-            message: status === "FAILED" ? line : undefined,
-          });
-
-          totalTests++;
-          if (status === "PASSED") passed++;
-          else failed++;
+          // Update summary from JUnit data (more accurate than console parsing)
+          testResults.summary = {
+            totalTests: junitData.tests,
+            passed: junitData.tests - junitData.failures - junitData.errors,
+            failed: junitData.failures + junitData.errors,
+            testDetails: junitData.testcases.map(tc => ({
+              scenario: `${tc.classname}.${tc.name}`,
+              status: tc.status === 'FAILED' ? 'FAILED' : 'PASSED',
+              message: tc.failure?.message || tc.error?.message
+            }))
+          };
         }
+      } catch (error) {
+        console.error('Failed to parse JUnit XML:', error);
       }
+    }
 
-      if (totalTests > 0) {
-        testResults.summary = {
-          totalTests,
-          passed,
-          failed,
-          testDetails,
-        };
+    // Fallback: Try to parse test summary from console output if JUnit parsing failed
+    if (!testResults.summary) {
+      try {
+        const lines = stdout.split("\n");
+        const testDetails: Array<{
+          scenario: string;
+          status: "PASSED" | "FAILED";
+          message?: string;
+        }> = [];
+
+        let totalTests = 0;
+        let passed = 0;
+        let failed = 0;
+
+        for (const line of lines) {
+          // Look for test result patterns in Specmatic output
+          if (line.includes("PASSED") || line.includes("FAILED")) {
+            const status = line.includes("PASSED") ? "PASSED" : "FAILED";
+            const scenario = line.trim();
+            
+            testDetails.push({
+              scenario,
+              status,
+              message: status === "FAILED" ? line : undefined,
+            });
+
+            totalTests++;
+            if (status === "PASSED") passed++;
+            else failed++;
+          }
+        }
+
+        if (totalTests > 0) {
+          testResults.summary = {
+            totalTests,
+            passed,
+            failed,
+            testDetails,
+          };
+        }
+      } catch (parseError) {
+        // If parsing fails, we still return the basic result
+        console.error("Failed to parse test output:", parseError);
       }
-    } catch (parseError) {
-      // If parsing fails, we still return the basic result
-      console.error("Failed to parse test output:", parseError);
     }
 
     return testResults;
@@ -461,6 +648,13 @@ class SpecmaticMCPServer {
       output += `- Passed: ${result.summary.passed}\n`;
       output += `- Failed: ${result.summary.failed}\n\n`;
 
+      // Add JUnit report reference if available
+      if (result.hostJunitReportPath) {
+        output += `📄 **Detailed JUnit Report:** \`${result.hostJunitReportPath}\`\n\n`;
+        output += `For complete failure analysis, use the Read tool to analyze the JUnit XML report above.\n`;
+        output += `The report contains detailed test results, timing information, and stack traces.\n\n`;
+      }
+
       // Only show failed tests to reduce output size
       const failedTests = result.summary.testDetails.filter(test => test.status === "FAILED");
       
@@ -481,8 +675,8 @@ class SpecmaticMCPServer {
       }
     }
 
-    // For large outputs (especially resiliency tests), only include errors and truncate output
-    if (result.output) {
+    // For large outputs, prioritize JUnit reports over console output
+    if (result.output && !result.hostJunitReportPath) {
       const outputLength = result.output.length;
       const MAX_OUTPUT_LENGTH = 2000; // Limit to roughly 500 tokens
       
@@ -494,11 +688,13 @@ class SpecmaticMCPServer {
         output += `\n... [Truncated ${outputLength - MAX_OUTPUT_LENGTH} characters]\n`;
         output += "```\n\n";
       } else {
-        output += "## Full Output\n";
+        output += "## Console Output\n";
         output += "```\n";
         output += result.output;
         output += "\n```\n\n";
       }
+    } else if (result.hostJunitReportPath) {
+      output += "*Console output omitted - detailed results available in JUnit report above.*\n\n";
     }
 
     if (result.errors) {

@@ -1,23 +1,24 @@
 {
-  "name": "specmatic-mcp-server",
+  "name": "specmatic-mcp",
   "version": "1.0.0",
   "description": "MCP server wrapper for Specmatic contract testing",
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "specmatic-mcp-server": "./build/index.js"
+    "specmatic-mcp": "./build/index.js"
   },
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
     "start": "node build/index.js",
     "dev": "tsc --watch",
-    "docker:build": "docker build -t specmatic-mcp-server .",
-    "docker:run": "docker run --rm -i specmatic-mcp-server",
-    "start:host-network": "docker run --rm -i --network=host specmatic-mcp-server",
+    "docker:build": "docker build -t specmatic-mcp .",
+    "docker:run": "docker run --rm -i specmatic-mcp",
+    "start:host-network": "docker run --rm -i --network=host specmatic-mcp",
     "setup": "./setup-host.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2",
+    "fast-xml-parser": "^4.3.4",
     "zod": "^3.22.4"
   },
   "devDependencies": {
