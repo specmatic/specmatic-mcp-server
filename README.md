@@ -1,5 +1,7 @@
 # Specmatic MCP Server
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/specmatic/specmatic-mcp)](https://hub.docker.com/r/specmatic/specmatic-mcp)
+
 A Model Context Protocol (MCP) server that exposes [Specmatic](https://specmatic.io/)'s capabilities such as API Contract Testing, API Resiliency Testing, API mocking, etc. to AI coding agents.
 
 ## Prerequisites
