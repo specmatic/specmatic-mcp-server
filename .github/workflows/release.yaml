@@ -35,7 +35,7 @@ jobs:
         run: semver validate ${{ inputs.version_number }}
 
       - name: Build and Publish
-        run: docker buildx build --push --platform=linux/amd64,linux/arm64 -t specmatic/specmatic-docker-desktop-extension:${{ inputs.version_number }} .
+        run: docker buildx build --push --platform=linux/amd64,linux/arm64 -t specmatic/specmatic-mcp:${{ inputs.version_number }} .
 
       - name: Tag the repo
         run: |
