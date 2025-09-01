@@ -124,11 +124,11 @@ After setup, interact with your AI coding agent using natural language:
 - Use absolute paths if relative paths don't work
 - Check Docker volume mounting permissions
 
-## Documentation
+## Sample project
 
-For detailed Specmatic documentation, visit:
-- [Specmatic Getting Started](https://docs.specmatic.io/getting_started.html)
-- [Contract Testing Guide](https://specmatic.io/documentation/)
+Build an entire FE and BE application with Specmatic MCP as guard rails:
+
+[https://github.com/specmatic/specmatic-mcp-sample](https://github.com/specmatic/specmatic-mcp-sample)
 
 ## Support
 
