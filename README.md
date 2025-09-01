@@ -2,7 +2,7 @@
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/specmatic/specmatic-mcp)](https://hub.docker.com/r/specmatic/specmatic-mcp)
 
-A Model Context Protocol (MCP) server that exposes [Specmatic](https://specmatic.io/)'s capabilities such as API Contract Testing, API Resiliency Testing, API mocking, etc. to AI coding agents.
+A Model Context Protocol (MCP) server that exposes [Specmatic](https://specmatic.io/)'s capabilities—including API Contract Testing, API Resiliency Testing, and API mocking—to AI coding agents.
 
 ## Prerequisites
 
@@ -60,13 +60,13 @@ The `--network=host` flag is required for:
 2. **Open your project** in VS Code as a **workspace** (single-folder or multi-root as needed).  
 3. **Open the Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`) and search for **`MCP: Add server`**, then press **Enter**
 4. **Choose transport protocol** as **`stdio`**  
-5. **Enter the command** to run the MCP server (adjust the placeholder path as your project setup):  
+5. **Enter the command** to run the MCP server (adjust the placeholder path to match your project setup):  
    ```bash
    docker run --rm -i --network=host -v /<REPLACE_WITH_YOUR_PROJECT_PATH>/reports:/app/reports specmatic/specmatic-mcp:latest
    ```
 6. **Set the server ID** to `specmatic-mcp`.  
 7. **Choose installation scope**: `Global` (available everywhere) or `Workspace` (just this project).  
-8. **Verify the server**: Make sure that Specmatic MCP is listed without errors in the **MCP servers** panel and then request your Copilot Agent to run contract tests, resiliency tests, or start a mock server in natural language
+8. **Verify the server**: Make sure that Specmatic MCP is listed without errors in the **MCP servers** panel and then request your Copilot Agent to run contract tests, resiliency tests, or start a mock server in natural language.
 
 ## Features
 
@@ -137,4 +137,4 @@ For issues, questions, or feature requests, please [open an issue](https://githu
 
 ## License
 
-This project is licensed under the MIT License - see the [License.md](./License.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE.md](./LICENSE.md) file for details.
