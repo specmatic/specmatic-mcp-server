@@ -21,9 +21,37 @@ claude mcp add-json specmatic '{"command":"docker","args":["run","--rm","-i","--
 claude mcp add-json specmatic '{"command":"docker","args":["run","--rm","-i","--network=host","-v","/path/to/your/project/reports:/app/reports","specmatic/specmatic-mcp:latest"],"env":{}}'
 ```
 
-### VSCode, Cursor, or other MCP clients
+### VSCode
 
-Add to your `mcp.json` configuration:
+1. **Make sure Docker Desktop is running**  
+2. **Open your project** in VS Code as a **workspace** (single-folder or multi-root as needed).  
+3. **Open the Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`) and search for **`MCP: Add server`**, then press **Enter**
+4. **Choose transport protocol** as **`stdio`**  
+5. **⚠️ CRITICAL: Enter the command** to run the MCP server - **YOU MUST REPLACE `<REPLACE_WITH_YOUR_PROJECT_PATH>`** with your actual project path:
+   
+   **Template:**
+   ```bash
+   docker run --rm -i --network=host -v <REPLACE_WITH_YOUR_PROJECT_PATH>/reports:/app/reports specmatic/specmatic-mcp:latest
+   ```
+   
+   **Examples:**
+   ```bash
+   # macOS/Linux example:
+   docker run --rm -i --network=host -v /Users/yourname/projects/my-api-project/reports:/app/reports specmatic/specmatic-mcp:latest
+   
+   # Windows example:
+   docker run --rm -i --network=host -v C:\Users\yourname\projects\my-api-project\reports:/app/reports specmatic/specmatic-mcp:latest
+   ```
+
+6. **Set the server ID** to `specmatic-mcp`.  
+7. **Choose installation scope**: `Global` (available everywhere) or `Workspace` (just this project).  
+8. **Verify the server**: Make sure that Specmatic MCP is listed without errors in the **MCP servers** panel and then request your Copilot Agent to run contract tests, resiliency tests, or start a mock server in natural language.
+
+### Other MCP Clients (General Configuration)
+
+For Cursor, GitHub Copilot, or other MCP clients, add to your `mcp.json` configuration:
+
+⚠️ **IMPORTANT**: Replace `<REPLACE_WITH_YOUR_PROJECT_PATH>` with your actual project path.
 
 ```json
 {
@@ -45,6 +73,10 @@ Add to your `mcp.json` configuration:
 }
 ```
 
+**Path Examples:**
+- **macOS/Linux**: `/Users/yourname/projects/my-api-project/reports:/app/reports`
+- **Windows**: `C:\Users\yourname\projects\my-api-project\reports:/app/reports`
+
 ### Important: Host Network Mode
 
 The `--network=host` flag is required for:
@@ -53,20 +85,6 @@ The `--network=host` flag is required for:
 - **Port binding**: Ensures mock servers on specific ports are reachable from outside the container
 
 **Security Note**: Host networking gives the container access to your host's network interfaces. Only use this with trusted images.
-
-### VSCode detailed instructions
-
-1. **Make sure Docker Desktop is running**  
-2. **Open your project** in VS Code as a **workspace** (single-folder or multi-root as needed).  
-3. **Open the Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`) and search for **`MCP: Add server`**, then press **Enter**
-4. **Choose transport protocol** as **`stdio`**  
-5. **Enter the command** to run the MCP server (adjust the placeholder path to match your project setup):  
-   ```bash
-   docker run --rm -i --network=host -v /<REPLACE_WITH_YOUR_PROJECT_PATH>/reports:/app/reports specmatic/specmatic-mcp:latest
-   ```
-6. **Set the server ID** to `specmatic-mcp`.  
-7. **Choose installation scope**: `Global` (available everywhere) or `Workspace` (just this project).  
-8. **Verify the server**: Make sure that Specmatic MCP is listed without errors in the **MCP servers** panel and then request your Copilot Agent to run contract tests, resiliency tests, or start a mock server in natural language.
 
 ## Features
 
