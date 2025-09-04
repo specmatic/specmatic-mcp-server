@@ -6,16 +6,59 @@ import { SpecmaticTestResult, TestExecutionResult } from "../types/index.js";
 import { RunContractTestInput } from "../schemas/index.js";
 import { listXmlFiles, findNewJunitFiles, parseJunitXmlFile } from "../utils/junit-parser.js";
 
-export async function runContractTest(input: RunContractTestInput): Promise<SpecmaticTestResult> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "specmatic-test-"));
+/**
+ * Detects if the application is running inside a Docker container
+ */
+function isRunningInDocker(): boolean {
+  try {
+    // Check for Docker-specific indicators
+    // 1. Check if /.dockerenv file exists
+    try {
+      require('fs').accessSync('/.dockerenv');
+      return true;
+    } catch {}
+    
+    // 2. Check if we're running as root with specific working directory
+    if (process.getuid && process.getuid() === 0 && process.cwd() === '/app') {
+      return true;
+    }
+    
+    // 3. Check if container-specific environment variables exist
+    if (process.env.HOSTNAME && process.env.HOSTNAME.length === 12) {
+      return true;
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Gets the appropriate reports directory based on environment
+ */
+function getReportsDirectory(): string {
+  if (isRunningInDocker()) {
+    return '/app/reports';
+  } else {
+    return path.resolve('./build/reports/specmatic');
+  }
+}
+
+async function runSpecmaticTest(input: RunContractTestInput, resiliency: boolean = false): Promise<SpecmaticTestResult> {
+  const tempDirPrefix = resiliency ? "specmatic-resiliency-test-" : "specmatic-test-";
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), tempDirPrefix));
   const specFile = path.join(tempDir, `spec.${input.specFormat}`);
 
   try {
     // Write the OpenAPI spec to a temporary file
     await fs.writeFile(specFile, input.openApiSpec, "utf8");
 
-    // Run Specmatic test using Docker
-    const result = await executeSpecmaticTest(specFile, input.apiBaseUrl);
+    // Set environment variables based on test type
+    const env: Record<string, string> = resiliency ? { SPECMATIC_GENERATIVE_TESTS: "true" } : {};
+    
+    // Run Specmatic test
+    const result = await executeSpecmaticTest(specFile, input.apiBaseUrl, env);
     
     // Parse the output to extract test results
     const parsedResult = await parseSpecmaticOutput(result);
@@ -38,38 +81,12 @@ export async function runContractTest(input: RunContractTestInput): Promise<Spec
   }
 }
 
+export async function runContractTest(input: RunContractTestInput): Promise<SpecmaticTestResult> {
+  return runSpecmaticTest(input, false);
+}
+
 export async function runResiliencyTest(input: RunContractTestInput): Promise<SpecmaticTestResult> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "specmatic-resiliency-test-"));
-  const specFile = path.join(tempDir, `spec.${input.specFormat}`);
-
-  try {
-    // Write the OpenAPI spec to a temporary file
-    await fs.writeFile(specFile, input.openApiSpec, "utf8");
-
-    // Run Specmatic resiliency test with SPECMATIC_GENERATIVE_TESTS=true
-    const result = await executeSpecmaticTest(specFile, input.apiBaseUrl, {
-      SPECMATIC_GENERATIVE_TESTS: "true"
-    });
-    
-    // Parse the output to extract test results
-    const parsedResult = await parseSpecmaticOutput(result);
-    
-    return parsedResult;
-  } catch (error) {
-    return {
-      success: false,
-      output: "",
-      errors: error instanceof Error ? error.message : String(error),
-      exitCode: 1,
-    };
-  } finally {
-    // Cleanup temporary files
-    try {
-      await fs.rm(tempDir, { recursive: true, force: true });
-    } catch (cleanupError) {
-      console.error("Failed to cleanup temp directory:", cleanupError);
-    }
-  }
+  return runSpecmaticTest(input, true);
 }
 
 async function executeSpecmaticTest(
@@ -77,10 +94,13 @@ async function executeSpecmaticTest(
   apiBaseUrl: string, 
   env: Record<string, string> = {}
 ): Promise<TestExecutionResult> {
-  const reportsDir = '/app/reports';
+  const reportsDir = getReportsDirectory();
   
   return new Promise(async (resolve, reject) => {
     try {
+      // Ensure reports directory exists
+      await fs.mkdir(reportsDir, { recursive: true });
+      
       // List existing XML files before test execution
       const filesBefore = await listXmlFiles(reportsDir);
       
@@ -91,7 +111,7 @@ async function executeSpecmaticTest(
         `--junitReportDir=${reportsDir}`
       ];
 
-    const specmaticProcess = spawn("specmatic", specmaticArgs, {
+    const specmaticProcess = spawn("npx", ["specmatic@latest", ...specmaticArgs], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...env },
     });
@@ -119,7 +139,15 @@ async function executeSpecmaticTest(
           // Use the first (or most recent) JUnit file found
           const junitFilename = newFiles[0];
           junitReportPath = path.join(reportsDir, junitFilename);
-          hostJunitReportPath = `./reports/${junitFilename}`;
+          
+          // Set host path based on environment
+          if (isRunningInDocker()) {
+            // In Docker, assume volume mount to ./build/reports/specmatic/ on host
+            hostJunitReportPath = `./build/reports/specmatic/${junitFilename}`;
+          } else {
+            // In npm/local environment, use relative path from current directory
+            hostJunitReportPath = path.join('./build/reports/specmatic', junitFilename);
+          }
         }
         
         resolve({
@@ -156,7 +184,7 @@ async function executeSpecmaticTest(
 }
 
 async function parseSpecmaticOutput(result: TestExecutionResult): Promise<SpecmaticTestResult> {
-  const { stdout, stderr, exitCode, junitFiles, junitReportPath, hostJunitReportPath } = result;
+  const { stdout, stderr, exitCode, junitReportPath, hostJunitReportPath } = result;
   const success = exitCode === 0;
 
   // Initialize test results with JUnit paths

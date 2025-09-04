@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "specmatic": {
+      "command": "node",
+      "args": ["build/index.js"],
+      "env": {
+        "NODE_ENV": "test"
+      }
+    }
+  }
+}

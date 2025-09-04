@@ -11,6 +11,9 @@
     "build": "tsc && chmod +x build/index.js",
     "start": "node build/index.js",
     "dev": "tsc --watch",
+    "test:smoke": "npm run build && node test-smoke.js",
+    "test:mcp": "npm run build && npx @modelcontextprotocol/inspector-cli --config tests/mcp-inspector.config.json --server specmatic --cli",
+    "inspect": "npm run build && npx @modelcontextprotocol/inspector-cli --config tests/mcp-inspector.config.json --server specmatic",
     "docker:build": "docker build -t specmatic-mcp .",
     "docker:run": "docker run --rm -i specmatic-mcp",
     "start:host-network": "docker run --rm -i --network=host specmatic-mcp",
@@ -19,9 +22,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2",
     "fast-xml-parser": "^4.3.4",
+    "specmatic": "^1.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@modelcontextprotocol/inspector-cli": "^0.16.6",
     "@types/node": "^20.11.24",
     "typescript": "^5.3.3"
   },

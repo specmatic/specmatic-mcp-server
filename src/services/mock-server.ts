@@ -101,7 +101,7 @@ export class MockServerManager {
         `--port=${port}`
       ];
 
-      const specmaticProcess = spawn("specmatic", specmaticArgs, {
+      const specmaticProcess = spawn("npx", ["specmatic@latest", ...specmaticArgs], {
         stdio: ["pipe", "pipe", "pipe"],
         detached: false,
       });
@@ -125,10 +125,14 @@ export class MockServerManager {
             });
           }
         }
-      }, 2000);
+      }, 3000);
 
       specmaticProcess.stderr.on("data", (data) => {
-        stderr += data.toString();
+        const output = data.toString();
+        // Filter out Node.js deprecation warnings that aren't actual errors
+        if (!output.includes("DeprecationWarning") && !output.includes("Use `node --trace-deprecation")) {
+          stderr += output;
+        }
       });
 
       specmaticProcess.on("error", (error) => {
@@ -146,7 +150,7 @@ export class MockServerManager {
           hasResolved = true;
           resolve({
             success: false,
-            error: `Process exited with code ${code}: ${stderr}`,
+            error: `Process exited with code ${code}: ${stderr.trim() || "No error details"}`,
           });
         }
       });
