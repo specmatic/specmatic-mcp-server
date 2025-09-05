@@ -5,6 +5,38 @@
 
 A Model Context Protocol (MCP) server that exposes [Specmatic](https://specmatic.io/)'s capabilities—including API Contract Testing, API Resiliency Testing, and API mocking—to AI coding agents.
 
+## What You Can Do
+
+Interact with your AI coding agent using natural language to:
+
+```
+"Run contract tests against my API at https://api.example.com using this OpenAPI spec: [paste spec]"
+"Start a mock server on port 9000 using this spec: [paste spec]"
+"Run resiliency tests to check error handling with @products-api.yaml spec"
+"List all running mock servers"
+"Stop the mock server on port 9000"
+```
+
+### Available Tools
+
+#### `run_contract_test`
+Validates API implementations against OpenAPI specifications by running contract tests.
+- **Input**: OpenAPI spec, API base URL, spec format (yaml/json)
+- **Output**: Test results with pass/fail status and detailed failure information
+- **Use case**: Ensure your API implementation matches the contract specification
+
+#### `run_resiliency_test`
+Tests API resilience by sending boundary condition and invalid requests.
+- **Input**: OpenAPI spec, API base URL, spec format (yaml/json)
+- **Output**: Enhanced testing results including edge case validation
+- **Use case**: Verify proper error handling and API robustness
+
+#### `manage_mock_server`
+Complete mock server lifecycle management for frontend development.
+- **Subcommands**: `start`, `stop`, `list`
+- **Features**: Port management, multiple concurrent servers, automatic cleanup
+- **Use case**: Generate mock APIs from OpenAPI specs for frontend development
+
 ## Prerequisites
 
 - MCP-compatible coding environment (Claude Code, VSCode with MCP extension, Cursor, GitHub Copilot, etc.)
@@ -18,7 +50,7 @@ A Model Context Protocol (MCP) server that exposes [Specmatic](https://specmatic
 
 ## Setup
 
-### Method 1: npm Package (Recommended)
+### npm Package (Recommended)
 
 #### Claude Code
 ```bash
@@ -56,7 +88,7 @@ Add to your `mcp.json` configuration:
 
 ---
 
-### Method 2: Docker
+### Docker Alternative
 
 #### Claude Code
 ```bash
@@ -141,40 +173,6 @@ The `--network=host` flag is required for:
 
 **Use Docker** if you prefer not to install Node.js and Java locally on your system.
 
-## Features
-
-### Available Tools
-
-#### `run_contract_test`
-Validates API implementations against OpenAPI specifications by running contract tests.
-- **Input**: OpenAPI spec, API base URL, spec format (yaml/json)
-- **Output**: Test results with pass/fail status and detailed failure information
-- **Use case**: Ensure your API implementation matches the contract specification
-
-#### `run_resiliency_test`
-Tests API resilience by sending boundary condition and invalid requests.
-- **Input**: OpenAPI spec, API base URL, spec format (yaml/json)
-- **Output**: Enhanced testing results including edge case validation
-- **Use case**: Verify proper error handling and API robustness
-
-#### `manage_mock_server`
-Complete mock server lifecycle management for frontend development.
-- **Subcommands**: `start`, `stop`, `list`
-- **Features**: Port management, multiple concurrent servers, automatic cleanup
-- **Use case**: Generate mock APIs from OpenAPI specs for frontend development
-
-## Usage
-
-After setup, interact with your AI coding agent using natural language:
-
-```
-"Run contract tests against my API at https://api.example.com using this OpenAPI spec: [paste spec]"
-"Start a mock server on port 9000 using this spec: [paste spec]"
-"Run resiliency tests to check error handling with @products-api.yaml spec"
-"List all running mock servers"
-"Stop the mock server on port 9000"
-```
-
 ### Reports and Output
 
 **npm Package:**
@@ -192,68 +190,13 @@ After setup, interact with your AI coding agent using natural language:
 - Detailed test results and timing information in JUnit XML format
 - Structured error reporting and stack traces
 
-## Troubleshooting
+## 🚀 Try the Complete Example
 
-### npm Package Issues
+Explore a full-stack application built with Specmatic MCP as guard rails:
 
-**Node.js version incompatibility**:
-- Ensure Node.js 18+ is installed: `node --version`
-- Use `nvm use stable` to switch to latest stable version
-- Run `npm install -g npm@latest` to update npm
+**[https://github.com/specmatic/specmatic-mcp-sample](https://github.com/specmatic/specmatic-mcp-sample)**
 
-**Permission errors on global install**:
-- Use `npx specmatic-mcp` instead of global install
-- Or configure npm to use a different directory: `npm config set prefix ~/.local`
-- On macOS/Linux: Use `sudo` only if absolutely necessary
-
-**Command not found**:
-- If using global install: ensure npm global bin directory is in PATH
-- Alternative: Use `npx specmatic-mcp` which works without global install
-- Check installation: `npm list -g specmatic-mcp`
-
-**Reports directory not created**:
-- Ensure you have write permissions in current directory
-- The reports directory is created automatically on first test run
-- Manually create: `mkdir -p ./reports`
-
-### Docker Issues
-
-**Docker permission errors**:
-- Ensure Docker is running and your user has Docker permissions
-- On Linux, you may need to add your user to the `docker` group
-
-**Port conflicts**:
-- Mock servers require available ports (default range: 9000-9010)
-- Use `manage_mock_server list` to see currently used ports
-
-**Volume mounting issues**:
-- Ensure the reports directory exists: `mkdir -p reports`
-- Use absolute paths if relative paths don't work
-- Check Docker volume mounting permissions
-
-### General Issues
-
-**Java not found (npm package)**:
-- Install Java Runtime Environment (JRE) 8 or higher
-- On macOS: `brew install openjdk`
-- On Ubuntu/Debian: `sudo apt-get install default-jre`
-- On Windows: Download from Oracle or use Chocolatey
-
-**API connection failures**:
-- Verify the API is running and accessible
-- Check firewall settings for localhost connections
-- Ensure correct URL format (include `http://` or `https://`)
-
-**Mock server not accessible**:
-- Verify the port is available: `lsof -i :9000`
-- Check if process is actually running: `ps aux | grep specmatic`
-- For Docker: ensure `--network=host` flag is used
-
-## Sample project
-
-Build an entire FE and BE application with Specmatic MCP as guard rails:
-
-[https://github.com/specmatic/specmatic-mcp-sample](https://github.com/specmatic/specmatic-mcp-sample)
+This sample project demonstrates how to build an entire frontend and backend application using Specmatic MCP for contract testing, API mocking, and resiliency validation.
 
 ## Support
 
