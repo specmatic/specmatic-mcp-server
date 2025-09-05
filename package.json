@@ -7,8 +7,18 @@
   "bin": {
     "specmatic-mcp": "./build/index.js"
   },
+  "files": [
+    "build/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agilefaqs/specmatic-mcp-server.git"
+  },
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
+    "prepack": "npm run build",
     "start": "node build/index.js",
     "dev": "tsc --watch",
     "test:smoke": "npm run build && node test-smoke.js",
