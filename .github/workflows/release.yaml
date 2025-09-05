@@ -1,15 +1,34 @@
-name: Release
+name: Release Package and Docker Image
 
 on:
   workflow_dispatch:
     inputs:
       version_number:
-        description: "Version of the Docker image to be released"
+        description: "Version to be released (both npm package and Docker image)"
         required: true
         type: string
+
 jobs:
-  release:
+  npm-publish:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
+      - run: npm run prepack
+      - uses: reedyuk/npm-version@1.2.2
+        with:
+          version: ${{ inputs.version_number }}
+      - uses: JS-DevTools/npm-publish@v3
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+
+  docker-release:
+    runs-on: ubuntu-latest
+    needs: npm-publish
     permissions:
       contents: write
     steps:
@@ -34,7 +53,7 @@ jobs:
       - name: Validate the given version number
         run: semver validate ${{ inputs.version_number }}
 
-      - name: Build and Publish
+      - name: Build and Publish Docker Image
         run: docker buildx build --push --platform=linux/amd64,linux/arm64 -t specmatic/specmatic-mcp:${{ inputs.version_number }} -t specmatic/specmatic-mcp:latest .
 
       - name: Tag the repo
