@@ -74,3 +74,22 @@ export interface MockServerExecutionResult {
   process?: any;
   error?: string;
 }
+
+export interface BackwardCompatibilityResult {
+  success: boolean;
+  output: string;
+  errors: string;
+  exitCode: number;
+  specFilePath: string;
+  breakingChanges?: Array<{
+    type: string;
+    description: string;
+    severity: "breaking" | "warning" | "info";
+  }>;
+  summary?: {
+    totalChecks: number;
+    breakingChanges: number;
+    warnings: number;
+    compatible: boolean;
+  };
+}

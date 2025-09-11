@@ -13,5 +13,13 @@ export const ManageMockServerInputSchema = z.object({
   specFormat: z.enum(["yaml", "json"]).optional().default("yaml").describe("Format of the OpenAPI spec - used with 'start' command"),
 });
 
+export const BackwardCompatibilityInputSchema = z.object({
+  specFilePath: z.string().describe("Absolute file path to the OpenAPI specification file"),
+  targetPath: z.string().optional().describe("Specific file or folder to analyze (defaults to specFilePath)"),
+  baseBranch: z.string().optional().describe("Git branch to compare against (defaults to current branch head)"),
+  repoDir: z.string().optional().describe("Repository directory (defaults to current directory)"),
+});
+
 export type RunContractTestInput = z.infer<typeof RunContractTestInputSchema>;
 export type ManageMockServerInput = z.infer<typeof ManageMockServerInputSchema>;
+export type BackwardCompatibilityInput = z.infer<typeof BackwardCompatibilityInputSchema>;

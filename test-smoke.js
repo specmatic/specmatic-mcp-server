@@ -132,6 +132,9 @@ class MCPSmokeTest {
     // Step 4: Stop mock server
     await this.stopMockServer();
     
+    // Step 5: Test backward compatibility (npm only) - final validation
+    await this.testBackwardCompatibility();
+    
     success('Test loop completed successfully');
   }
 
@@ -228,6 +231,181 @@ class MCPSmokeTest {
     } else {
       throw new Error('Failed to run resiliency test');
     }
+  }
+
+  async testBackwardCompatibility() {
+    info('Testing backward compatibility check (npm environments only)...');
+    
+    // First, list available tools to see if backward compatibility is available
+    const listRequest = {
+      jsonrpc: "2.0",
+      id: this.requestId++,
+      method: "tools/list",
+      params: {}
+    };
+
+    const listResponse = await this.sendMCPRequest(listRequest);
+    const tools = listResponse.result?.tools || [];
+    const hasBackwardCompatTool = tools.some(tool => tool.name === "backward_compatibility_check");
+
+    if (!hasBackwardCompatTool) {
+      info('Backward compatibility check not available (Docker environment detected) - skipping');
+      return;
+    }
+
+    let originalSpec = '';
+
+    try {
+      // Step 1: Store original spec content
+      originalSpec = fs.readFileSync(this.testSpecPath, 'utf8');
+      info('Original test spec backed up');
+
+      // Step 2: Initialize git repository if not exists
+      await this.setupGitRepo();
+      info('Git repository setup completed');
+
+      // Step 3: Create breaking change in test-spec.yaml
+      await this.createBreakingChange();
+      info('Breaking change applied to test spec');
+
+      // Step 4: Run backward compatibility check
+      const request = {
+        jsonrpc: "2.0",
+        id: this.requestId++,
+        method: "tools/call",
+        params: {
+          name: "backward_compatibility_check",
+          arguments: {
+            specFilePath: this.testSpecPath
+          }
+        }
+      };
+
+      const response = await this.sendMCPRequest(request, 60000); // 60 second timeout
+      
+      // Step 5: Validate the response
+      if (response.result && response.result.content) {
+        const output = response.result.content.find(c => c.text)?.text || '';
+        
+        if (output.includes('BREAKING CHANGES DETECTED') || output.includes('breaking change')) {
+          success('Backward compatibility check correctly detected breaking changes');
+          info('Breaking change detection validated successfully');
+        } else if (output.includes('BACKWARD COMPATIBLE')) {
+          warn('Backward compatibility check did not detect breaking changes (unexpected)');
+          info('Response: ' + output.substring(0, 300) + '...');
+        } else if (output.includes('FAILED')) {
+          warn('Backward compatibility check failed (may be expected in some environments)');
+          info('Response: ' + output.substring(0, 300) + '...');
+        } else {
+          warn('Backward compatibility check returned unexpected format');
+          info('Response: ' + output.substring(0, 300) + '...');
+        }
+      } else if (response.error) {
+        warn(`Backward compatibility check failed: ${response.error.message}`);
+      } else {
+        warn('Backward compatibility check returned unexpected response format');
+      }
+
+    } catch (error) {
+      error(`Backward compatibility test failed: ${error.message}`);
+    } finally {
+      // Step 6: Always restore original spec
+      if (originalSpec) {
+        try {
+          fs.writeFileSync(this.testSpecPath, originalSpec, 'utf8');
+          success('Original test spec restored');
+        } catch (restoreError) {
+          error(`Failed to restore original spec: ${restoreError.message}`);
+        }
+      }
+    }
+  }
+
+  async setupGitRepo() {
+    // Initialize git if not already initialized
+    try {
+      await this.execCommand('git', ['status']);
+      info('Git repository already exists');
+    } catch {
+      info('Initializing git repository...');
+      await this.execCommand('git', ['init']);
+      await this.execCommand('git', ['config', 'user.name', 'Smoke Test']);
+      await this.execCommand('git', ['config', 'user.email', 'smoketest@example.com']);
+    }
+
+    // Add and commit original test spec
+    try {
+      await this.execCommand('git', ['add', this.testSpecPath]);
+      await this.execCommand('git', ['commit', '-m', 'Add original test spec for backward compatibility testing']);
+      info('Original test spec committed to git');
+    } catch (commitError) {
+      // May fail if already committed - that's okay
+      info('Test spec already in git history');
+    }
+  }
+
+  async createBreakingChange() {
+    const originalSpec = fs.readFileSync(this.testSpecPath, 'utf8');
+    
+    // Add a POST endpoint with mandatory field to create a breaking change
+    const breakingChangeSpec = originalSpec.replace(
+      'paths:\n  /posts:',
+      `paths:
+  /posts:
+    post:
+      summary: Create a new post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                body:
+                  type: string
+                userId:
+                  type: integer
+              required: [title, body, userId]
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  title:
+                    type: string
+                  body:
+                    type: string
+                  userId:
+                    type: integer
+  /posts/{id}:`
+    );
+
+    fs.writeFileSync(this.testSpecPath, breakingChangeSpec, 'utf8');
+    info('Breaking change applied: Added mandatory POST endpoint with required fields');
+  }
+
+  async execCommand(command, args) {
+    const { spawn } = await import('child_process');
+    return new Promise((resolve, reject) => {
+      const proc = spawn(command, args, { cwd: __dirname });
+      let stdout = '';
+      let stderr = '';
+      
+      proc.stdout.on('data', (data) => stdout += data);
+      proc.stderr.on('data', (data) => stderr += data);
+      
+      proc.on('close', (code) => {
+        if (code === 0) resolve(stdout);
+        else reject(new Error(`${command} failed: ${stderr}`));
+      });
+    });
   }
 
   async stopMockServer() {

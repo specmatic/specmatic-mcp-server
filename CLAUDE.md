@@ -79,6 +79,7 @@ This MCP server exposes Specmatic's contract testing functionality to AI coding 
 1. **`run_contract_test`**: Validates API implementations against OpenAPI specifications
 2. **`run_resiliency_test`**: Tests API resilience with boundary condition testing (enables `SPECMATIC_GENERATIVE_TESTS`)
 3. **`manage_mock_server`**: Complete mock server lifecycle management - start, stop, and list running servers from OpenAPI specs for frontend development
+4. **`backward_compatibility_check`**: Checks for breaking changes in OpenAPI specifications using git comparison (npm package only - not available in Docker environments)
 
 ### npm Package Implementation
 - **Primary Mode**: Standalone npm package using `specmatic` npm dependency
@@ -98,8 +99,9 @@ This MCP server exposes Specmatic's contract testing functionality to AI coding 
 - **Process Management**: Uses Node.js `spawn()` to execute `npx specmatic@latest` commands
 - **Error Handling**: Comprehensive parsing of specmatic output with timeout protection
 - **Result Formatting**: Structured output with test summaries and failure details
-- **Testing**: MCP Inspector validates all three tools automatically
+- **Testing**: MCP Inspector validates all available tools automatically
 - **Cross-platform**: Works on any system with Node.js, no Docker required for development
+- **Environment-Aware**: Backward compatibility tool only available in npm environments (excluded from Docker)
 
 ### Constraints
 - Always use nvm to use node stable version
@@ -224,6 +226,64 @@ For complete failure analysis, use the Read tool to analyze the JUnit XML report
 *Console output omitted - detailed results available in JUnit report above.*
 ```
 
+### Backward Compatibility Check
+```javascript
+// MCP Tool Call
+{
+  name: "backward_compatibility_check",
+  arguments: {
+    specFilePath: "/path/to/openapi.yaml",
+    baseBranch: "main",
+    repoDir: "/path/to/git/repo"
+  }
+}
+
+// Expected Output Format (Backward Compatible)
+✅ Compatibility Status: BACKWARD COMPATIBLE
+
+File: `/path/to/openapi.yaml`
+
+No breaking changes detected. The API specification changes are backward compatible.
+
+Summary:
+- Total Checks: 5
+- Breaking Changes: 0
+- Warnings: 0
+- Backward Compatible: Yes
+
+## ✨ Next Steps
+Your changes are backward compatible! You can proceed with confidence:
+1. **Deploy**: The changes can be safely deployed
+2. **Document**: Update API documentation as needed
+3. **Test**: Run your existing test suite to ensure everything works as expected
+
+// Expected Output Format (Breaking Changes Detected)
+⚠️ Compatibility Status: BREAKING CHANGES DETECTED
+
+File: `/path/to/openapi.yaml`
+
+The specification contains changes that may break existing clients.
+
+Summary:
+- Total Checks: 8
+- Breaking Changes: 2
+- Warnings: 1
+- Backward Compatible: No
+
+## 🚨 Breaking Changes
+*These changes will break existing clients and require careful consideration:*
+
+❌ **breaking_change**: Removed required field 'userId' from request body
+❌ **breaking_change**: Changed response status code from 200 to 201
+
+## 🔧 Recommendations
+**Breaking changes detected!** Consider these approaches:
+1. **Version Increment**: Update the API version (e.g., v1 → v2) to indicate breaking changes
+2. **Gradual Migration**: Maintain both old and new endpoints during a transition period
+3. **Redesign Changes**: Modify the changes to maintain backward compatibility
+4. **Client Communication**: Notify API consumers about the breaking changes and migration path
+```
+
 ### Mock Server Management
 
 #### Start Mock Server
@@ -306,10 +366,17 @@ Usage:
 - **port**: Number between 1024-65535 - **required for "start" and "stop" commands** (defaults to 9000 for "start")
 - **specFormat**: Either "yaml" or "json" (defaults to "yaml") - **used with "start" command**
 
+#### For Backward Compatibility Check (npm package only)
+- **specFilePath**: Absolute file path to OpenAPI specification file - **required**
+- **targetPath**: Specific file or folder to analyze (optional, defaults to specFilePath)
+- **baseBranch**: Git branch to compare against (optional, defaults to current branch head)
+- **repoDir**: Repository directory (optional, defaults to current directory)
+
 #### Conditional Requirements
-- **start**: Requires `openApiSpec` and `port` parameters
-- **stop**: Requires `port` parameter only  
-- **list**: No additional parameters required
+- **Mock Server start**: Requires `openApiSpec` and `port` parameters
+- **Mock Server stop**: Requires `port` parameter only  
+- **Mock Server list**: No additional parameters required
+- **Backward Compatibility**: Requires `specFilePath` parameter, git repository context recommended
 
 ## Testing and Development
 

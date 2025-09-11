@@ -9,10 +9,10 @@ import {
   McpError,
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
-import { RunContractTestInputSchema, ManageMockServerInputSchema } from "./schemas/index.js";
-import { runContractTest, runResiliencyTest } from "./services/test-executor.js";
+import { RunContractTestInputSchema, ManageMockServerInputSchema, BackwardCompatibilityInputSchema } from "./schemas/index.js";
+import { runContractTest, runResiliencyTest, runBackwardCompatibilityCheck, isRunningInDocker } from "./services/test-executor.js";
 import { MockServerManager } from "./services/mock-server.js";
-import { formatTestResults, formatMockServerResult } from "./formatters/index.js";
+import { formatTestResults, formatMockServerResult, formatBackwardCompatibilityResult } from "./formatters/index.js";
 
 
 
@@ -64,88 +64,118 @@ class SpecmaticMCPServer {
     });
 
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          {
-            name: "run_contract_test",
-            description: "Run Specmatic contract tests against an API using OpenAPI specification",
-            inputSchema: {
-              type: "object",
-              properties: {
-                openApiSpec: {
-                  type: "string",
-                  description: "The OpenAPI specification content (YAML or JSON)"
-                },
-                apiBaseUrl: {
-                  type: "string",
-                  description: "The base URL of the API to test against"
-                },
-                specFormat: {
-                  type: "string",
-                  enum: ["yaml", "json"],
-                  default: "yaml",
-                  description: "Format of the OpenAPI spec"
-                }
+      const tools = [
+        {
+          name: "run_contract_test",
+          description: "Run Specmatic contract tests against an API using OpenAPI specification",
+          inputSchema: {
+            type: "object",
+            properties: {
+              openApiSpec: {
+                type: "string",
+                description: "The OpenAPI specification content (YAML or JSON)"
               },
-              required: ["openApiSpec", "apiBaseUrl"]
-            },
-          },
-          {
-            name: "run_resiliency_test",
-            description: "Run Specmatic resiliency tests with boundary condition testing against an API using OpenAPI specification. This enables SPECMATIC_GENERATIVE_TESTS to test how the API handles contract-invalid requests",
-            inputSchema: {
-              type: "object",
-              properties: {
-                openApiSpec: {
-                  type: "string",
-                  description: "The OpenAPI specification content (YAML or JSON)"
-                },
-                apiBaseUrl: {
-                  type: "string",
-                  description: "The base URL of the API to test against"
-                },
-                specFormat: {
-                  type: "string",
-                  enum: ["yaml", "json"],
-                  default: "yaml",
-                  description: "Format of the OpenAPI spec"
-                }
+              apiBaseUrl: {
+                type: "string",
+                description: "The base URL of the API to test against"
               },
-              required: ["openApiSpec", "apiBaseUrl"]
+              specFormat: {
+                type: "string",
+                enum: ["yaml", "json"],
+                default: "yaml",
+                description: "Format of the OpenAPI spec"
+              }
             },
+            required: ["openApiSpec", "apiBaseUrl"]
           },
-          {
-            name: "manage_mock_server",
-            description: "Manage Specmatic mock servers - start, stop, or list running servers for frontend development. Supports complete mock server lifecycle management.",
-            inputSchema: {
-              type: "object",
-              properties: {
-                command: {
-                  type: "string",
-                  enum: ["start", "stop", "list"],
-                  description: "The action to perform: 'start' creates a new server, 'stop' terminates a server, 'list' shows running servers"
-                },
-                openApiSpec: {
-                  type: "string",
-                  description: "The OpenAPI specification content (YAML or JSON) - required for 'start' command"
-                },
-                port: {
-                  type: "number",
-                  default: 9000,
-                  description: "Port number for the mock server - required for 'start' and 'stop' commands"
-                },
-                specFormat: {
-                  type: "string",
-                  enum: ["yaml", "json"],
-                  default: "yaml",
-                  description: "Format of the OpenAPI spec - used with 'start' command"
-                }
+        },
+        {
+          name: "run_resiliency_test",
+          description: "Run Specmatic resiliency tests with boundary condition testing against an API using OpenAPI specification. This enables SPECMATIC_GENERATIVE_TESTS to test how the API handles contract-invalid requests",
+          inputSchema: {
+            type: "object",
+            properties: {
+              openApiSpec: {
+                type: "string",
+                description: "The OpenAPI specification content (YAML or JSON)"
               },
-              required: ["command"]
+              apiBaseUrl: {
+                type: "string",
+                description: "The base URL of the API to test against"
+              },
+              specFormat: {
+                type: "string",
+                enum: ["yaml", "json"],
+                default: "yaml",
+                description: "Format of the OpenAPI spec"
+              }
             },
+            required: ["openApiSpec", "apiBaseUrl"]
           },
-        ],
-      };
+        },
+        {
+          name: "manage_mock_server",
+          description: "Manage Specmatic mock servers - start, stop, or list running servers for frontend development. Supports complete mock server lifecycle management.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              command: {
+                type: "string",
+                enum: ["start", "stop", "list"],
+                description: "The action to perform: 'start' creates a new server, 'stop' terminates a server, 'list' shows running servers"
+              },
+              openApiSpec: {
+                type: "string",
+                description: "The OpenAPI specification content (YAML or JSON) - required for 'start' command"
+              },
+              port: {
+                type: "number",
+                default: 9000,
+                description: "Port number for the mock server - required for 'start' and 'stop' commands"
+              },
+              specFormat: {
+                type: "string",
+                enum: ["yaml", "json"],
+                default: "yaml",
+                description: "Format of the OpenAPI spec - used with 'start' command"
+              }
+            },
+            required: ["command"]
+          },
+        },
+      ];
+
+      // Only add backward compatibility tool in non-Docker environments
+      if (!isRunningInDocker()) {
+        tools.push({
+          name: "backward_compatibility_check",
+          description: "Check for breaking changes in OpenAPI specifications using git comparison. Compares current specification with version-controlled version to detect backward compatibility issues.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              specFilePath: {
+                type: "string",
+                description: "Absolute file path to the OpenAPI specification file"
+              },
+              targetPath: {
+                type: "string",
+                description: "Specific file or folder to analyze (optional, defaults to specFilePath)"
+              },
+              baseBranch: {
+                type: "string", 
+                description: "Git branch to compare against (optional, defaults to current branch head)"
+              },
+              repoDir: {
+                type: "string",
+                description: "Repository directory (optional, defaults to current directory)"
+              }
+            },
+            required: ["specFilePath"]
+          } as any,
+        });
+      }
+
+      return { tools };
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -197,6 +227,20 @@ class SpecmaticMCPServer {
             {
               type: "text",
               text: formatMockServerResult(result),
+            },
+          ],
+        };
+      }
+
+      if (name === "backward_compatibility_check") {
+        const input = BackwardCompatibilityInputSchema.parse(args);
+        const result = await runBackwardCompatibilityCheck(input);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: formatBackwardCompatibilityResult(result),
             },
           ],
         };

@@ -13,6 +13,7 @@ Interact with your AI coding agent using natural language to:
 "Run contract tests against my API at https://api.example.com using this OpenAPI spec: [paste spec]"
 "Start a mock server on port 9000 using this spec: [paste spec]"
 "Run resiliency tests to check error handling with @products-api.yaml spec"
+"Check for breaking changes in my API spec at /path/to/openapi.yaml compared to main branch"
 "List all running mock servers"
 "Stop the mock server on port 9000"
 ```
@@ -37,6 +38,13 @@ Complete mock server lifecycle management for frontend development.
 - **Features**: Port management, multiple concurrent servers, automatic cleanup
 - **Use case**: Generate mock APIs from OpenAPI specs for frontend development
 
+#### `backward_compatibility_check` *(npm package only)*
+Checks for breaking changes in OpenAPI specifications using git comparison.
+- **Input**: OpenAPI spec file path, git branch comparison, repository directory
+- **Output**: Backward compatibility analysis with breaking change detection
+- **Use case**: Validate API changes don't break existing clients before deployment
+- **Availability**: Only available when using the npm package (not available in Docker due to git repository access requirements)
+
 ## Prerequisites
 
 - MCP-compatible coding environment (Claude Code, VSCode with MCP extension, Cursor, GitHub Copilot, etc.)
@@ -44,6 +52,7 @@ Complete mock server lifecycle management for frontend development.
 **For npm package (recommended):**
 - Node.js stable (`nvm use stable`)
 - Java Runtime Environment (JRE)
+- Git (required for backward compatibility checking)
 
 **For Docker:**
 - Docker installed and running
@@ -173,6 +182,20 @@ The `--network=host` flag is required for:
 
 **Use Docker** if you prefer not to install Node.js and Java locally on your system.
 
+### Tool Availability by Environment
+
+**npm Package:**
+- ✅ Contract Testing (`run_contract_test`)
+- ✅ Resiliency Testing (`run_resiliency_test`)  
+- ✅ Mock Server Management (`manage_mock_server`)
+- ✅ Backward Compatibility Check (`backward_compatibility_check`)
+
+**Docker:**
+- ✅ Contract Testing (`run_contract_test`)
+- ✅ Resiliency Testing (`run_resiliency_test`)
+- ✅ Mock Server Management (`manage_mock_server`)
+- ❌ Backward Compatibility Check (requires direct git repository access)
+
 ### Reports and Output
 
 **npm Package:**
@@ -189,6 +212,71 @@ The `--network=host` flag is required for:
 - Console output with immediate feedback and summaries
 - Detailed test results and timing information in JUnit XML format
 - Structured error reporting and stack traces
+
+## Usage Examples
+
+### Backward Compatibility Check *(npm package only)*
+
+Check for breaking changes in your OpenAPI specification:
+
+```javascript
+// MCP Tool Call
+{
+  name: "backward_compatibility_check",
+  arguments: {
+    specFilePath: "/path/to/openapi.yaml",
+    baseBranch: "main",
+    repoDir: "/path/to/git/repo"
+  }
+}
+```
+
+**✅ Backward Compatible Result:**
+```
+✅ Compatibility Status: BACKWARD COMPATIBLE
+
+File: /path/to/openapi.yaml
+
+No breaking changes detected. The API specification changes are backward compatible.
+
+Summary:
+- Total Checks: 5
+- Breaking Changes: 0
+- Warnings: 0
+- Backward Compatible: Yes
+
+## ✨ Next Steps
+Your changes are backward compatible! You can proceed with confidence:
+1. **Deploy**: The changes can be safely deployed
+2. **Document**: Update API documentation as needed
+3. **Test**: Run your existing test suite to ensure everything works as expected
+```
+
+**⚠️ Breaking Changes Detected Result:**
+```
+⚠️ Compatibility Status: BREAKING CHANGES DETECTED
+
+File: /path/to/openapi.yaml
+
+The specification contains changes that may break existing clients.
+
+Summary:
+- Total Checks: 8
+- Breaking Changes: 2
+- Warnings: 1
+- Backward Compatible: No
+
+## 🚨 Breaking Changes
+❌ **breaking_change**: Removed required field 'userId' from request body
+❌ **breaking_change**: Changed response status code from 200 to 201
+
+## 🔧 Recommendations
+**Breaking changes detected!** Consider these approaches:
+1. **Version Increment**: Update the API version (e.g., v1 → v2) to indicate breaking changes
+2. **Gradual Migration**: Maintain both old and new endpoints during a transition period
+3. **Redesign Changes**: Modify the changes to maintain backward compatibility
+4. **Client Communication**: Notify API consumers about the breaking changes and migration path
+```
 
 ## 🚀 Try the Complete Example
 

@@ -1,4 +1,4 @@
-import { SpecmaticTestResult, MockServerResult } from "../types/index.js";
+import { SpecmaticTestResult, MockServerResult, BackwardCompatibilityResult } from "../types/index.js";
 
 export function formatTestResults(result: SpecmaticTestResult, testType: "contract" | "resiliency" = "contract"): string {
   const testTypeTitle = testType === "resiliency" ? "Resiliency" : "Contract";
@@ -159,6 +159,111 @@ export function formatMockServerResult(result: MockServerResult): string {
     default:
       output += "## ❌ Unknown Command\n\n";
       output += `**Error:** ${result.message}\n`;
+  }
+
+  return output;
+}
+
+export function formatBackwardCompatibilityResult(result: BackwardCompatibilityResult): string {
+  let output = `# Specmatic Backward Compatibility Check\n\n`;
+
+  // Show the file being analyzed
+  output += `**File:** \`${result.specFilePath}\`\n\n`;
+
+  // Show compatibility status
+  if (result.success && result.summary?.compatible) {
+    output += "## ✅ Compatibility Status: BACKWARD COMPATIBLE\n\n";
+    output += "No breaking changes detected. The API specification changes are backward compatible.\n\n";
+  } else if (result.success && !result.summary?.compatible) {
+    output += "## ⚠️ Compatibility Status: BREAKING CHANGES DETECTED\n\n";
+    output += "The specification contains changes that may break existing clients.\n\n";
+  } else {
+    output += "## ❌ Compatibility Check: FAILED\n\n";
+    output += "The backward compatibility check could not complete successfully.\n\n";
+  }
+
+  // Show summary if available
+  if (result.summary) {
+    output += `## Summary\n`;
+    output += `- Total Checks: ${result.summary.totalChecks}\n`;
+    output += `- Breaking Changes: ${result.summary.breakingChanges}\n`;
+    output += `- Warnings: ${result.summary.warnings}\n`;
+    output += `- Backward Compatible: ${result.summary.compatible ? 'Yes' : 'No'}\n\n`;
+
+    // Show breaking changes and warnings
+    if (result.breakingChanges && result.breakingChanges.length > 0) {
+      const breakingItems = result.breakingChanges.filter(change => change.severity === "breaking");
+      const warningItems = result.breakingChanges.filter(change => change.severity === "warning");
+      const infoItems = result.breakingChanges.filter(change => change.severity === "info");
+
+      if (breakingItems.length > 0) {
+        output += "## 🚨 Breaking Changes\n";
+        output += "*These changes will break existing clients and require careful consideration:*\n\n";
+        for (const change of breakingItems) {
+          output += `❌ **${change.type}**: ${change.description}\n`;
+        }
+        output += "\n";
+      }
+
+      if (warningItems.length > 0) {
+        output += "## ⚠️ Warnings\n";
+        output += "*These changes may affect clients but are not necessarily breaking:*\n\n";
+        for (const change of warningItems) {
+          output += `⚠️ **${change.type}**: ${change.description}\n`;
+        }
+        output += "\n";
+      }
+
+      if (infoItems.length > 0) {
+        output += "## ℹ️ Information\n";
+        output += "*Additional details about the changes:*\n\n";
+        for (const change of infoItems) {
+          output += `ℹ️ **${change.type}**: ${change.description}\n`;
+        }
+        output += "\n";
+      }
+    } else if (result.summary.compatible) {
+      output += "## ✅ All Changes Compatible\n";
+      output += "All detected changes maintain backward compatibility.\n\n";
+    }
+  }
+
+  // Show recommendations based on results
+  if (result.summary?.breakingChanges && result.summary.breakingChanges > 0) {
+    output += "## 🔧 Recommendations\n\n";
+    output += "**Breaking changes detected!** Consider these approaches:\n\n";
+    output += "1. **Version Increment**: Update the API version (e.g., v1 → v2) to indicate breaking changes\n";
+    output += "2. **Gradual Migration**: Maintain both old and new endpoints during a transition period\n";
+    output += "3. **Redesign Changes**: Modify the changes to maintain backward compatibility\n";
+    output += "4. **Client Communication**: Notify API consumers about the breaking changes and migration path\n\n";
+  } else if (result.summary?.warnings && result.summary.warnings > 0) {
+    output += "## 💡 Recommendations\n\n";
+    output += "**Warnings detected.** Consider:\n\n";
+    output += "1. **Review Impact**: Assess if warnings affect your specific client implementations\n";
+    output += "2. **Documentation**: Update API documentation to reflect any behavioral changes\n";
+    output += "3. **Testing**: Thoroughly test existing client integrations\n\n";
+  } else if (result.summary?.compatible) {
+    output += "## ✨ Next Steps\n\n";
+    output += "Your changes are backward compatible! You can proceed with confidence:\n\n";
+    output += "1. **Deploy**: The changes can be safely deployed\n";
+    output += "2. **Document**: Update API documentation as needed\n";
+    output += "3. **Test**: Run your existing test suite to ensure everything works as expected\n\n";
+  }
+
+  // Show console output if no summary is available or for debugging
+  if (!result.summary && result.output) {
+    output += "## Console Output\n";
+    output += "```\n";
+    output += result.output;
+    output += "\n```\n\n";
+  }
+
+  // Show errors if any
+  if (result.errors) {
+    output += "## Errors\n";
+    output += "```\n";
+    output += result.errors;
+    output += "\n```\n";
   }
 
   return output;
