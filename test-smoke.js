@@ -291,14 +291,16 @@ class MCPSmokeTest {
           success('Backward compatibility check correctly detected breaking changes');
           info('Breaking change detection validated successfully');
         } else if (output.includes('BACKWARD COMPATIBLE')) {
-          warn('Backward compatibility check did not detect breaking changes (unexpected)');
+          error('❌ SMOKE TEST FAILURE: Backward compatibility check did not detect breaking changes (this should have failed)');
           info('Response: ' + output.substring(0, 300) + '...');
+          throw new Error('Backward compatibility check failed to detect expected breaking changes');
         } else if (output.includes('FAILED')) {
           warn('Backward compatibility check failed (may be expected in some environments)');
           info('Response: ' + output.substring(0, 300) + '...');
         } else {
-          warn('Backward compatibility check returned unexpected format');
+          error('❌ SMOKE TEST FAILURE: Backward compatibility check returned unexpected format');
           info('Response: ' + output.substring(0, 300) + '...');
+          throw new Error('Backward compatibility check returned unexpected response format');
         }
       } else if (response.error) {
         warn(`Backward compatibility check failed: ${response.error.message}`);

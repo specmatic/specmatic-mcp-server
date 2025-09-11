@@ -10,7 +10,8 @@ import {
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { RunContractTestInputSchema, ManageMockServerInputSchema, BackwardCompatibilityInputSchema } from "./schemas/index.js";
-import { runContractTest, runResiliencyTest, runBackwardCompatibilityCheck, isRunningInDocker } from "./services/test-executor.js";
+import { runContractTest, runResiliencyTest, isRunningInDocker } from "./services/contract-testing.js";
+import { runBackwardCompatibilityCheck } from "./services/backward-compatibility.js";
 import { MockServerManager } from "./services/mock-server.js";
 import { formatTestResults, formatMockServerResult, formatBackwardCompatibilityResult } from "./formatters/index.js";
 
@@ -149,17 +150,13 @@ class SpecmaticMCPServer {
       if (!isRunningInDocker()) {
         tools.push({
           name: "backward_compatibility_check",
-          description: "Check for breaking changes in OpenAPI specifications using git comparison. Compares current specification with version-controlled version to detect backward compatibility issues.",
+          description: "Check for breaking changes in OpenAPI specifications using Specmatic's git-based analysis. Works with relative paths and automatically detects git repository context. Example: targetPath='products_api.yaml'",
           inputSchema: {
             type: "object",
             properties: {
-              specFilePath: {
-                type: "string",
-                description: "Absolute file path to the OpenAPI specification file"
-              },
               targetPath: {
                 type: "string",
-                description: "Specific file or folder to analyze (optional, defaults to specFilePath)"
+                description: "File or folder path to analyze for backward compatibility (e.g., 'products_api.yaml' or 'specs/'). If not provided, Specmatic will analyze all tracked specification files"
               },
               baseBranch: {
                 type: "string", 
@@ -170,7 +167,7 @@ class SpecmaticMCPServer {
                 description: "Repository directory (optional, defaults to current directory)"
               }
             },
-            required: ["specFilePath"]
+            required: []
           } as any,
         });
       }

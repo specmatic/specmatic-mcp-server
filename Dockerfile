@@ -1,35 +1,51 @@
-# Use Node.js latest stable for security and reduced vulnerabilities
-FROM node:latest
+# Multi-stage build for minimal production image
+FROM node:20-alpine AS builder
 
-# Install Java (required by Specmatic)
-RUN apt-get update && apt-get install -y \
-    default-jre \
-    && rm -rf /var/lib/apt/lists/*
+# Set working directory
+WORKDIR /app
+
+# Copy package files for better layer caching
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install all dependencies (including devDependencies for build)
+RUN npm ci --frozen-lockfile
+
+# Copy source code
+COPY src/ ./src/
+
+# Build the TypeScript code
+RUN npm run build
+
+# Production stage - use Alpine with minimal footprint
+FROM node:20-alpine
+
+# Install minimal Java runtime for Specmatic
+RUN apk add --no-cache \
+    openjdk17-jre-headless \
+    && rm -rf /var/cache/apk/*
 
 # Create app directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY tsconfig.json ./
 
-# Install dependencies (includes specmatic via npm)
-RUN npm ci
-COPY src/ ./src/
-RUN npm run build
+# Install only production dependencies with clean cache
+RUN npm ci --only=production --frozen-lockfile && \
+    npm cache clean --force && \
+    rm -rf ~/.npm
 
-# Install only production dependencies and clean cache
-RUN npm ci --only=production && npm cache clean --force
+# Copy built application from builder stage
+COPY --from=builder /app/build ./build
 
-# Create a non-root user
-RUN groupadd --gid 1001 nodejs && \
-    useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home specmatic
+# Create a non-root user (Alpine syntax)
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S specmatic -u 1001 -G nodejs
 
-# Create reports directory for JUnit XML files (volume-mounted from host)
-RUN mkdir -p /app/reports
-
-# Change ownership of the app directory including reports
-RUN chown -R specmatic:nodejs /app
+# Create reports directory for JUnit XML files
+RUN mkdir -p /app/reports && \
+    chown -R specmatic:nodejs /app
 
 # Switch to non-root user
 USER specmatic
@@ -37,8 +53,7 @@ USER specmatic
 # Set environment variables
 ENV NODE_ENV=production
 
-
-# Make the script executable  
+# Make the script executable
 RUN chmod +x build/index.js
 
 # Override the base image entrypoint and set our MCP server as the default command

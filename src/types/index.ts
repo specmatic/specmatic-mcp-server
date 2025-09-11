@@ -80,7 +80,7 @@ export interface BackwardCompatibilityResult {
   output: string;
   errors: string;
   exitCode: number;
-  specFilePath: string;
+  targetPath?: string;
   breakingChanges?: Array<{
     type: string;
     description: string;

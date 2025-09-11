@@ -14,8 +14,7 @@ export const ManageMockServerInputSchema = z.object({
 });
 
 export const BackwardCompatibilityInputSchema = z.object({
-  specFilePath: z.string().describe("Absolute file path to the OpenAPI specification file"),
-  targetPath: z.string().optional().describe("Specific file or folder to analyze (defaults to specFilePath)"),
+  targetPath: z.string().optional().describe("File or folder path to analyze for backward compatibility (e.g., 'products_api.yaml' or 'specs/'). If not provided, Specmatic will analyze all tracked specification files"),
   baseBranch: z.string().optional().describe("Git branch to compare against (defaults to current branch head)"),
   repoDir: z.string().optional().describe("Repository directory (defaults to current directory)"),
 });

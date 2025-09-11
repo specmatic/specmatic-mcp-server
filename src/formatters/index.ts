@@ -167,14 +167,18 @@ export function formatMockServerResult(result: MockServerResult): string {
 export function formatBackwardCompatibilityResult(result: BackwardCompatibilityResult): string {
   let output = `# Specmatic Backward Compatibility Check\n\n`;
 
-  // Show the file being analyzed
-  output += `**File:** \`${result.specFilePath}\`\n\n`;
+  // Show the file being analyzed if provided
+  if (result.targetPath) {
+    output += `**File:** \`${result.targetPath}\`\n\n`;
+  }
 
-  // Show compatibility status
-  if (result.success && result.summary?.compatible) {
+  // Show compatibility status based on exit code
+  // success = (exitCode === 0) means backward compatible
+  // !success = (exitCode !== 0) means breaking changes detected
+  if (result.success) {
     output += "## ✅ Compatibility Status: BACKWARD COMPATIBLE\n\n";
     output += "No breaking changes detected. The API specification changes are backward compatible.\n\n";
-  } else if (result.success && !result.summary?.compatible) {
+  } else if (result.exitCode !== 0) {
     output += "## ⚠️ Compatibility Status: BREAKING CHANGES DETECTED\n\n";
     output += "The specification contains changes that may break existing clients.\n\n";
   } else {
@@ -250,9 +254,10 @@ export function formatBackwardCompatibilityResult(result: BackwardCompatibilityR
     output += "3. **Test**: Run your existing test suite to ensure everything works as expected\n\n";
   }
 
-  // Show console output if no summary is available or for debugging
-  if (!result.summary && result.output) {
-    output += "## Console Output\n";
+  // Always show console output for backward compatibility check
+  // This contains the detailed Specmatic analysis including specific breaking changes
+  if (result.output) {
+    output += "## Detailed Analysis\n";
     output += "```\n";
     output += result.output;
     output += "\n```\n\n";
