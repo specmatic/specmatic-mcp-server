@@ -1,5 +1,5 @@
 # Multi-stage build for minimal production image
-FROM node:20-alpine AS builder
+FROM node:22-slim AS builder
 
 # Set working directory
 WORKDIR /app
@@ -17,13 +17,13 @@ COPY src/ ./src/
 # Build the TypeScript code
 RUN npm run build
 
-# Production stage - use Alpine with minimal footprint
-FROM node:20-alpine
+# Production stage - use slim with minimal footprint
+FROM node:22-slim
 
 # Install minimal Java runtime for Specmatic
-RUN apk add --no-cache \
-    openjdk17-jre-headless \
-    && rm -rf /var/cache/apk/*
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app
@@ -39,9 +39,9 @@ RUN npm ci --only=production --frozen-lockfile && \
 # Copy built application from builder stage
 COPY --from=builder /app/build ./build
 
-# Create a non-root user (Alpine syntax)
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S specmatic -u 1001 -G nodejs
+# Create a non-root user (Debian syntax)
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs specmatic
 
 # Create reports directory for JUnit XML files
 RUN mkdir -p /app/reports && \
