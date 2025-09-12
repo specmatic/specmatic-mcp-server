@@ -367,8 +367,7 @@ Usage:
 - **specFormat**: Either "yaml" or "json" (defaults to "yaml") - **used with "start" command**
 
 #### For Backward Compatibility Check (npm package only)
-- **specFilePath**: Absolute file path to OpenAPI specification file - **required**
-- **targetPath**: Specific file or folder to analyze (optional, defaults to specFilePath)
+- **targetPath**: File or folder path to analyze for backward compatibility - **optional** (if not provided, Specmatic analyzes all tracked specification files)
 - **baseBranch**: Git branch to compare against (optional, defaults to current branch head)
 - **repoDir**: Repository directory (optional, defaults to current directory)
 
@@ -376,7 +375,7 @@ Usage:
 - **Mock Server start**: Requires `openApiSpec` and `port` parameters
 - **Mock Server stop**: Requires `port` parameter only  
 - **Mock Server list**: No additional parameters required
-- **Backward Compatibility**: Requires `specFilePath` parameter, git repository context recommended
+- **Backward Compatibility**: All parameters optional, git repository context recommended
 
 ## Testing and Development
 

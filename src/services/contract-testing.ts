@@ -12,21 +12,30 @@ import { listXmlFiles, findNewJunitFiles, parseJunitXmlFile } from "../utils/jun
 export function isRunningInDocker(): boolean {
   try {
     // Check for Docker-specific indicators
-    // 1. Check if /.dockerenv file exists
+    // 1. Check if /.dockerenv file exists (most reliable indicator)
     try {
       require('fs').accessSync('/.dockerenv');
       return true;
     } catch {}
     
-    // 2. Check if we're running as root with specific working directory
-    if (process.getuid && process.getuid() === 0 && process.cwd() === '/app') {
+    // 2. Check if we're in /app working directory (our Docker setup)
+    if (process.cwd() === '/app') {
       return true;
     }
     
-    // 3. Check if container-specific environment variables exist
-    if (process.env.HOSTNAME && process.env.HOSTNAME.length === 12) {
+    // 3. Check for container-specific environment variables
+    if (process.env.NODE_ENV === 'production' && process.env.HOSTNAME) {
       return true;
     }
+    
+    // 4. Check /proc/1/cgroup for docker indicators
+    try {
+      const fs = require('fs');
+      const cgroup = fs.readFileSync('/proc/1/cgroup', 'utf8');
+      if (cgroup.includes('docker') || cgroup.includes('containerd')) {
+        return true;
+      }
+    } catch {}
     
     return false;
   } catch {
