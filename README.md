@@ -43,6 +43,7 @@ Checks for breaking changes in OpenAPI specifications using git comparison.
 - **Input**: OpenAPI spec file path, git branch comparison, repository directory
 - **Output**: Backward compatibility analysis with breaking change detection
 - **Use case**: Validate API changes don't break existing clients before deployment
+- **Prerequisite**: Requires git version control - Specmatic compares current spec with previous version to identify changes
 - **Availability**: Only available when using the npm package (not available in Docker due to git repository access requirements)
 
 ## Prerequisites
@@ -215,68 +216,7 @@ The `--network=host` flag is required for:
 
 ## Usage Examples
 
-### Backward Compatibility Check *(npm package only)*
-
-Check for breaking changes in your OpenAPI specification:
-
-```javascript
-// MCP Tool Call
-{
-  name: "backward_compatibility_check",
-  arguments: {
-    specFilePath: "/path/to/openapi.yaml",
-    baseBranch: "main",
-    repoDir: "/path/to/git/repo"
-  }
-}
-```
-
-**✅ Backward Compatible Result:**
-```
-✅ Compatibility Status: BACKWARD COMPATIBLE
-
-File: /path/to/openapi.yaml
-
-No breaking changes detected. The API specification changes are backward compatible.
-
-Summary:
-- Total Checks: 5
-- Breaking Changes: 0
-- Warnings: 0
-- Backward Compatible: Yes
-
-## ✨ Next Steps
-Your changes are backward compatible! You can proceed with confidence:
-1. **Deploy**: The changes can be safely deployed
-2. **Document**: Update API documentation as needed
-3. **Test**: Run your existing test suite to ensure everything works as expected
-```
-
-**⚠️ Breaking Changes Detected Result:**
-```
-⚠️ Compatibility Status: BREAKING CHANGES DETECTED
-
-File: /path/to/openapi.yaml
-
-The specification contains changes that may break existing clients.
-
-Summary:
-- Total Checks: 8
-- Breaking Changes: 2
-- Warnings: 1
-- Backward Compatible: No
-
-## 🚨 Breaking Changes
-❌ **breaking_change**: Removed required field 'userId' from request body
-❌ **breaking_change**: Changed response status code from 200 to 201
-
-## 🔧 Recommendations
-**Breaking changes detected!** Consider these approaches:
-1. **Version Increment**: Update the API version (e.g., v1 → v2) to indicate breaking changes
-2. **Gradual Migration**: Maintain both old and new endpoints during a transition period
-3. **Redesign Changes**: Modify the changes to maintain backward compatibility
-4. **Client Communication**: Notify API consumers about the breaking changes and migration path
-```
+Simply interact with your AI coding agent using natural language. The agent will call the appropriate MCP tools based on your requests. All detailed examples and output formats are available in the project's CLAUDE.md file for reference.
 
 ## 🚀 Try the Complete Example
 
