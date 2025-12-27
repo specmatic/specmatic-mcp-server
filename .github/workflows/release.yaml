@@ -12,8 +12,8 @@ jobs:
   npm-publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
       - run: npm install
@@ -41,7 +41,7 @@ jobs:
       - name: Docker Login
         run: echo ${{ secrets.SPECMATIC_DOCKER_HUB_TOKEN }} | docker login -u ${{ vars.SPECMATIC_DOCKER_HUB_USERNAME }} --password-stdin
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download semver cli
         if: runner.os != 'Windows'
