@@ -216,7 +216,7 @@ The `--network=host` flag is required for:
 
 ## Usage Examples
 
-Simply interact with your AI coding agent using natural language. The agent will call the appropriate MCP tools based on your requests. All detailed examples and output formats are available in the project's CLAUDE.md file for reference.
+Simply interact with your AI coding agent using natural language. The agent will call the appropriate MCP tools based on your requests. All detailed examples and output formats are available in the project's `AGENTS.md` file for reference. `CLAUDE.md` is kept as a thin wrapper for Claude Code compatibility.
 
 ## 🚀 Try the Complete Example
 
