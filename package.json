@@ -21,6 +21,7 @@
     "prepack": "npm run build",
     "start": "node build/index.js",
     "dev": "tsc --watch",
+    "test:openapi31": "node test-openapi31-fixture.js",
     "test:smoke": "npm run build && node test-smoke.js",
     "test:mcp": "npm run build && npx @modelcontextprotocol/inspector-cli --config tests/mcp-inspector.config.json --server specmatic --cli",
     "inspect": "npm run build && npx @modelcontextprotocol/inspector-cli --config tests/mcp-inspector.config.json --server specmatic",
