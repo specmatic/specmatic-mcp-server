@@ -27,7 +27,8 @@
     "docker:build": "docker build -t specmatic-mcp .",
     "docker:run": "docker run --rm -i specmatic-mcp",
     "start:host-network": "docker run --rm -i --network=host specmatic-mcp",
-    "setup": "./setup-host.sh"
+    "setup": "./setup-host.sh",
+    "test:license": "npm run build && node --test tests/license-integration.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2",

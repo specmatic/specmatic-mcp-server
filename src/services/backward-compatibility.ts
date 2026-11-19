@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawnSpecmatic } from "./specmatic-runtime.js";
 import * as fs from "fs/promises";
 import { BackwardCompatibilityResult, TestExecutionResult } from "../types/index.js";
 import { BackwardCompatibilityInput } from "../schemas/index.js";
@@ -46,7 +46,7 @@ async function executeBackwardCompatibilityCheck(
   return new Promise((resolve, reject) => {
     const workingDir = repoDir || process.cwd();
     
-    const specmaticProcess = spawn("npx", ["specmatic@latest", ...specmaticArgs], {
+    const specmaticProcess = spawnSpecmatic(specmaticArgs, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: workingDir,
       env: { ...process.env },
@@ -86,9 +86,8 @@ async function executeBackwardCompatibilityCheck(
 function parseBackwardCompatibilityOutput(result: TestExecutionResult, targetPath?: string): BackwardCompatibilityResult {
   const { stdout, stderr, exitCode } = result;
   
-  // Use exit code as the definitive indicator of compatibility
-  // exitCode === 0 means backward compatible
-  // exitCode !== 0 means breaking changes detected
+  // A failed process may have been denied before any comparison ran.
+  const completed = stdout.match(/Files checked:\s*(\d+)\s*\(Passed:\s*(\d+),\s*Failed:\s*(\d+)\)/);
   const success = exitCode === 0;
   const compatible = exitCode === 0;
 
@@ -98,13 +97,12 @@ function parseBackwardCompatibilityOutput(result: TestExecutionResult, targetPat
     errors: stderr,
     exitCode,
     targetPath,
-    // Provide basic summary based on exit code
-    summary: {
-      totalChecks: 1, // We performed one backward compatibility check
-      breakingChanges: compatible ? 0 : 1, // 0 if compatible, 1 if breaking changes
-      warnings: 0, // Not parsing detailed warnings from text
-      compatible: compatible,
-    },
+    summary: completed || success ? {
+      totalChecks: completed ? Number(completed[1]) : 1,
+      breakingChanges: completed ? Number(completed[3]) : 0,
+      warnings: 0,
+      compatible,
+    } : undefined,
   };
 
   return compatibilityResult;

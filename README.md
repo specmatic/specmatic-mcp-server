@@ -234,3 +234,5 @@ For issues, questions, or feature requests, please [open an issue](https://githu
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](./LICENSE.md) file for details.
+
+See [product licensing](docs/product-licensing.md) for runtime requirements and validation.

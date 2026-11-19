@@ -183,6 +183,7 @@ class SpecmaticMCPServer {
         const result = await runContractTest(input);
         
         return {
+          isError: !result.success,
           content: [
             {
               type: "text",
@@ -197,6 +198,7 @@ class SpecmaticMCPServer {
         const result = await runResiliencyTest(input);
         
         return {
+          isError: !result.success,
           content: [
             {
               type: "text",
@@ -220,6 +222,7 @@ class SpecmaticMCPServer {
         const result = await this.mockServerManager.manageMockServer(input);
         
         return {
+          isError: !result.success,
           content: [
             {
               type: "text",
@@ -234,6 +237,7 @@ class SpecmaticMCPServer {
         const result = await runBackwardCompatibilityCheck(input);
         
         return {
+          isError: !result.success,
           content: [
             {
               type: "text",

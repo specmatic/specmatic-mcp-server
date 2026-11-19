@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawnSpecmatic } from "./specmatic-runtime.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
@@ -120,7 +120,7 @@ async function executeSpecmaticTest(
         `--junitReportDir=${reportsDir}`
       ];
 
-    const specmaticProcess = spawn("npx", ["specmatic@latest", ...specmaticArgs], {
+    const specmaticProcess = spawnSpecmatic(specmaticArgs, {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...env },
     });

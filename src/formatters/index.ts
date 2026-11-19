@@ -172,13 +172,11 @@ export function formatBackwardCompatibilityResult(result: BackwardCompatibilityR
     output += `**File:** \`${result.targetPath}\`\n\n`;
   }
 
-  // Show compatibility status based on exit code
-  // success = (exitCode === 0) means backward compatible
-  // !success = (exitCode !== 0) means breaking changes detected
+  // Only completed comparisons establish whether the API has breaking changes.
   if (result.success) {
     output += "## ✅ Compatibility Status: BACKWARD COMPATIBLE\n\n";
     output += "No breaking changes detected. The API specification changes are backward compatible.\n\n";
-  } else if (result.exitCode !== 0) {
+  } else if ((result.summary?.breakingChanges ?? 0) > 0) {
     output += "## ⚠️ Compatibility Status: BREAKING CHANGES DETECTED\n\n";
     output += "The specification contains changes that may break existing clients.\n\n";
   } else {
